@@ -78,11 +78,14 @@ def process_cloud(cloud, num_points_resample, num_points_subsample, resolution):
         cloud.points = cloud.points.iloc[idx]
 
     if num_points_subsample > 0:
-        assert len(cloud.points) >= num_points_subsample
-        idx = np.random.choice(
-            len(cloud.points), num_points_subsample, replace=False
-        )
-        cloud.points = cloud.points.iloc[idx]
+        # assert len(cloud.points) >= num_points_subsample
+        if len(cloud.points) >= num_points_subsample:
+            idx = np.random.choice(
+                len(cloud.points), num_points_subsample, replace=False
+            )
+            cloud.points = cloud.points.iloc[idx]
+        else:
+            pass
 
     return cloud.points[xyz].values
 

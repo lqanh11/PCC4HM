@@ -85,7 +85,13 @@ def process_cloud(cloud, num_points_resample, num_points_subsample, resolution):
             )
             cloud.points = cloud.points.iloc[idx]
         else:
-            pass
+            missing_points = num_points_subsample - len(cloud.points)
+            idx = np.random.choice(
+                len(cloud.points), missing_points, replace=False
+            )
+            list_idx = np.array(list(range(len(cloud.points)))) 
+            new_idx = np.concatenate((list_idx, idx))
+            cloud.points = cloud.points.iloc[new_idx]
 
     return cloud.points[xyz].values
 

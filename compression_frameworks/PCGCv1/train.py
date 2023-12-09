@@ -13,7 +13,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--dataset", type=str, default='/media/avitech/Data/quocanhle/PointCloud/dataset/shapenet/points64/')
+    parser.add_argument("--dataset", type=str, default='/media/avitech/Data/quocanhle/PointCloud/dataset/training_dataset/PCGCv1/points64/')
     parser.add_argument("--dataset_num", type=int, default=2.8e5) 
     parser.add_argument(
         "--alpha", type=float, default=10, dest="alpha", #6

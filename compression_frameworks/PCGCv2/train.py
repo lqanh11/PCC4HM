@@ -59,7 +59,7 @@ if __name__ == '__main__':
                             lr=args.lr, 
                             check_time=args.check_time)
     # ShapeNet dataset
-    dataset_path = '/media/avitech/Data/quocanhle/PointCloud/dataset/training_dataset/'
+    dataset_path = '/media/avitech/Data/quocanhle/PointCloud/dataset/training_dataset/PCGCv2/'
     dataset_num = 2e4
     
     # model

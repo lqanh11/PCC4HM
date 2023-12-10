@@ -51,8 +51,10 @@ def collate_pointcloud_fn(list_data):
     if len(list_data) == 0:
         raise ValueError('No data in the batch')
     coords, feats, labels = list(zip(*list_data))
-    coords_batch, feats_batch = ME.utils.sparse_collate(coords, feats)
-    labels_batch = labels
+    coords_batch, feats_batch, labels_batch = ME.utils.sparse_collate(coords, 
+                                                                      feats, 
+                                                                      labels, 
+                                                                      dtype=torch.float32,)
 
     return coords_batch, feats_batch, labels_batch
 
@@ -93,8 +95,7 @@ class PCDataset_Classification                                                  
             feats = np.expand_dims(np.ones(coords.shape[0]), 1).astype('int')
 
             # object labels
-            labels = torch.zeros(10)
-            labels[label_dict[filedir.split('/')[-3]]] = 1
+            labels = label_dict[filedir.split('/')[-3]]
 
             # cache
             self.cache[idx] = (coords, feats, labels)

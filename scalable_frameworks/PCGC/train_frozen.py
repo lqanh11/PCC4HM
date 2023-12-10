@@ -5,8 +5,9 @@ import pandas as pd
 import torch
 import MinkowskiEngine as ME
 from data_loader_classification import PCDataset_Classification, make_data_loader
-from pcc_model_scalable import PCCModel
+from pcc_model_scalable import PCCModel, PCCModel_Classification
 from trainer_frozen import Trainer
+import random
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -17,13 +18,13 @@ def parse_args():
     parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
+    parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--epoch", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231209_shapenet_reconstruction_frozen_000', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231210_modelnet10_reconstruction_frozen_train_cls_000', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -71,6 +72,8 @@ def get_file_dirs(data_split_path):
     print('Train: ', len(train_file_dirs), 
         'Test: ', len(test_file_dirs))
     
+    random.shuffle(train_file_dirs)
+
     return {'Train':train_file_dirs[:], 
             'Test':test_file_dirs[:]}
 
@@ -78,21 +81,63 @@ if __name__ == '__main__':
     # log
     args = parse_args()
     training_config = TrainingConfig(
-                            logdir=os.path.join('/media/avitech/Data/quocanhle/PointCloud/logs/', args.prefix), 
+                            logdir=os.path.join('/media/avitech/Data/quocanhle/PointCloud/logs/Scalable_Cls/', args.prefix), 
                             ckptdir='', 
                             init_ckpt=args.init_ckpt, 
                             alpha=args.alpha, 
                             beta=args.beta, 
                             lr=args.lr, 
                             check_time=args.check_time)    
-    # model
-    model = PCCModel()
+    
+    # Init model
+    model = PCCModel_Classification()
+    
+    ## load pre-trained model
+    model_dict = model.state_dict()
+    model_compression = PCCModel()
+    ckpt_compression = torch.load("/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth")
+    model_compression.load_state_dict(ckpt_compression['model'])
+    model_compression_dict = model_compression.state_dict()
+
+    processed_dict = {}
+
+    for k in model_dict.keys(): 
+        decomposed_key = k.split(".")
+        if("encoder" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key] 
+        if("decoder" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
+        if("entropy_bottleneck" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
+    # If load processed dict the model did not have the same performance
+    # with pretrained model. I assume that the weight state dict dose not
+    # as the same with the original. Therefore, I create a for loop to 
+    # copy the weights to the original dict of the model.
+    for k in processed_dict.keys(): 
+        model_dict[k] = processed_dict[k]
+    
+    ## check state dict 
+    # models_differ = 0
+    # for key_item_1, key_item_2 in zip(model_dict.items(), model_compression_dict.items()):
+    #     if torch.equal(key_item_1[1], key_item_2[1]):
+    #         pass
+    #     else:
+    #         models_differ += 1
+    #         if (key_item_1[0] == key_item_2[0]):
+    #             print('Mismtach found at', key_item_1[0])
+    #         else:
+    #             raise Exception
+    # if models_differ == 0:
+    #     print('Models match perfectly! :)')
+
+    model.load_state_dict(model_dict)
+    
     # trainer    
     trainer = Trainer(config=training_config, model=model)
 
-    # dataset
-    
-    
     # dataset
     filedirs = get_file_dirs(args.data_split_path)
     

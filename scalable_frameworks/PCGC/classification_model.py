@@ -359,8 +359,8 @@ class MinkoPointNet_Conv_2(ME.MinkowskiNetwork):
                 nn.init.constant_(m.bn.weight, 1)
                 nn.init.constant_(m.bn.bias, 0)
 
-    def forward(self, input: ME.TensorField):
-        x = input.sparse()
+    def forward(self, x: ME.TensorField):
+        # x = input.sparse()
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)

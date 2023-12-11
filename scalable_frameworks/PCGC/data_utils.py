@@ -4,6 +4,10 @@ import h5py
 from pyntcloud import PyntCloud
 
 
+def read_h5_geo_read_all_info(filedir):
+    data = h5py.File(filedir, 'r')
+    return data
+
 def read_h5_geo(filedir):
     pc = h5py.File(filedir, 'r')['data'][:]
     coords = pc[:,0:3].astype('int')

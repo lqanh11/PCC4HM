@@ -487,18 +487,23 @@ class LatentSpaceTransform(torch.nn.Module):
         self.relu = ME.MinkowskiReLU(inplace=True)
         self.pruning = ME.MinkowskiPruning()
     
-    def prune_voxel(self, data, data_cls, nums):
+    def prune_voxel(self, data, data_cls, nums, ground_truth, training):
         mask_topk = istopk(data_cls, nums)
-        mask = mask_topk
+        if training: 
+            assert not ground_truth is None
+            mask_true = isin(data_cls.C, ground_truth.C)
+            mask = mask_topk + mask_true
+        else: 
+            mask = mask_topk
         data_pruned = self.pruning(data, mask.to(data.device))
 
         return data_pruned
-    
-    def forward(self, x, num_points):
+
+    def forward(self, x, num_points, x_fix_pts, training=True):
         #
         out = self.relu(self.conv0(self.relu(self.up0(x))))
         out_cls_0 = self.conv0_cls(out)
-        out = self.prune_voxel(out_cls_0, out_cls_0, num_points)
+        out = self.prune_voxel(out_cls_0, out_cls_0, num_points, x_fix_pts, training)
 
-        return out.C
+        return out
         

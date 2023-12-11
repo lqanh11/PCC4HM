@@ -82,7 +82,7 @@ parser.add_argument(
              "minksplatfcnn", 
              "minkpointnet_conv", 
              'minkpointnet_conv_2'],
-    default="minkfcnn",
+    default="minkpointnet_conv_2",
 )
 
 STR2NETWORK = dict(

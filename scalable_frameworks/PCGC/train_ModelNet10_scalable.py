@@ -25,8 +25,8 @@ def parse_args():
     parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epoch", type=int, default=100)
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--epoch", type=int, default=10)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--prefix", type=str, default='scalable_modelnet10_dense_FIXreconstruction_TRAINcls1024conv2_LEAVEtransposed', help="prefix of checkpoints/logger, etc.")
  

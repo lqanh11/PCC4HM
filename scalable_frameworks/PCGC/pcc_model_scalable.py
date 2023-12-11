@@ -18,7 +18,7 @@ class PCCModel_Scalable(torch.nn.Module):
         self.adapter = Adapter(channels=[8,4])
         self.transpose_adapter = TransposeAdapter(channels=[4,8])
         self.latentspace_transform = LatentSpaceTransform(channels=[4,8])
-        self.classifier = MinkowskiPointNet(in_channel=3, out_channel=10, embedding_channel=1024)
+        self.classifier = MinkoPointNet_Conv_2(in_channel=3, out_channel=10, embedding_channel=1024)
         
 
     def get_likelihood_o(self, data, quantize_mode):
@@ -107,7 +107,7 @@ class PCCModel_Scalable(torch.nn.Module):
             device=y.device)
         
         # Decoder
-        out_cls_list, out = self.decoder(y_scalable, nums_list, ground_truth_list, training)
+        out_cls_list, out = self.decoder(y_q, nums_list, ground_truth_list, training)
 
         return {'out':out,
                 'logits':logits,

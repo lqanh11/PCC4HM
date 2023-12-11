@@ -4,8 +4,9 @@ import numpy as np
 import torch
 import MinkowskiEngine as ME
 import torch.nn.functional as F
+import sklearn.metrics as metrics
 
-from loss import get_bce, get_mse, get_bits, get_metrics
+from loss import get_bce, get_CE_loss, get_mse, get_bits, get_metrics
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 from tensorboardX import SummaryWriter
 
@@ -47,23 +48,6 @@ class Trainer_Scalable():
         logger.addHandler(console)
 
         return logger
-
-    def criterion_CE(self, pred, labels, smoothing=True):
-        """Calculate cross entropy loss, apply label smoothing if needed."""
-        if smoothing:
-            eps = 0.2
-            n_class = pred.size(1)
-
-            one_hot = labels
-            one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
-            log_prb = F.log_softmax(pred, dim=1)
-
-            loss = -(one_hot * log_prb).sum(dim=1).mean()
-        else:
-            loss = F.cross_entropy(pred, labels, reduction="mean")
-
-        return loss
-
 
     def load_state_dict(self):
         """selectively load model
@@ -122,9 +106,14 @@ class Trainer_Scalable():
     @torch.no_grad()
     def test(self, dataloader, main_tag='Test'):
         self.logger.info('Testing Files length:' + str(len(dataloader)))
+
+        labels_list, preds_list = [], []
+
         for idx, (coords, feats, labels) in enumerate(tqdm(dataloader)):
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+            labels = torch.from_numpy(np.array(labels))
+
             # # Forward.
             out_set = self.model(x, training=False)
             # loss    
@@ -151,21 +140,25 @@ class Trainer_Scalable():
             bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
             ## CE classification
-            labels = torch.stack(labels).to(device)
-            ce_classification = self.criterion_CE(out_set['logits'], labels.to(device)) 
+            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
-            sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
-            
+            # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+            ## loss for base branch
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+
             # statistics
-            _, labels_class = torch.max(labels, 1)
-            output_class = torch.softmax(out_set['logits'], dim=1)
-            _, preds_class = torch.max(output_class, 1)
+            logits = out_set['logits']
+            preds_class = torch.argmax(logits, 1)
+            labels_class = labels.to(device)
+
+            labels_list.append(labels.cpu().numpy())
+            preds_list.append(preds_class.cpu().numpy())
 
             running_corrects_class = torch.sum(preds_class == labels_class)
 
-            metrics = []
+            metrics_calculator = []
             for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                metrics.append(get_metrics(out_cls, ground_truth))
+                metrics_calculator.append(get_metrics(out_cls, ground_truth))
             # record
             self.record_set['bce'].append(bce.item())
             self.record_set['mse'].append(mse.item())
@@ -177,7 +170,7 @@ class Trainer_Scalable():
             self.record_set['bits_b'].append(bits_b_avg.item())
             self.record_set['bits_e'].append(bits_e_avg.item())
             self.record_set['sum_loss'].append(sum_loss.item())
-            self.record_set['metrics'].append(metrics)
+            self.record_set['metrics'].append(metrics_calculator)
 
             self.accuracy_set['number_correct'].append(running_corrects_class.item())
             self.accuracy_set['total_number'].append(labels.size(0))
@@ -185,6 +178,8 @@ class Trainer_Scalable():
             torch.cuda.empty_cache()# empty cache.
 
         self.record(main_tag=main_tag, global_step=self.epoch)
+        accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
+        self.logger.info(f"Test accuracy: {accuracy}")
 
         return
 
@@ -199,19 +194,19 @@ class Trainer_Scalable():
 
         # Frezee layers in model
         ## all
-        params_to_train = ['entropy_bottleneck_b', 
-                           'entropy_bottleneck_e',
-                           'adapter',
-                           'transpose_adapter',
-                           'latentspace_transform',
-                           'classifier'
-                           ]
-        ## base
         # params_to_train = ['entropy_bottleneck_b', 
+        #                    'entropy_bottleneck_e',
         #                    'adapter',
+        #                    'transpose_adapter',
         #                    'latentspace_transform',
         #                    'classifier'
         #                    ]
+        ## base
+        params_to_train = ['entropy_bottleneck_b', 
+                           'adapter',
+                           'latentspace_transform',
+                           'classifier'
+                           ]
         ## enhancemet
         # params_to_train = ['entropy_bottleneck_e', 
         #                    'transpose_adapter'
@@ -231,6 +226,7 @@ class Trainer_Scalable():
             self.optimizer.zero_grad()
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+            labels = torch.from_numpy(np.array(labels))
             # if x.shape[0] > 6e5: continue
             # forward
             out_set = self.model(x, training=True)
@@ -258,11 +254,12 @@ class Trainer_Scalable():
             bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
             ## CE classification
-            labels = torch.stack(labels).to(device)
-            ce_classification = self.criterion_CE(out_set['logits'], labels.to(device)) 
+            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
-            sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
-            
+            # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+            ## loss for base branch
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+
             # # backward & optimize
             # sum_loss.requires_grad = True
             sum_loss.backward()
@@ -276,15 +273,15 @@ class Trainer_Scalable():
             # metric & record
             with torch.no_grad():
                 # statistics
-                _, labels_class = torch.max(labels, 1)
-                output_class = torch.softmax(out_set['logits'], dim=1)
-                _, preds_class = torch.max(output_class, 1)
+                logits = out_set['logits']
+                preds_class = torch.argmax(logits, 1)
+                labels_class = labels.to(device)
 
                 running_corrects_class = torch.sum(preds_class == labels_class)
 
-                metrics = []
+                metrics_calculator = []
                 for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                    metrics.append(get_metrics(out_cls, ground_truth))
+                    metrics_calculator.append(get_metrics(out_cls, ground_truth))
                 self.record_set['bce'].append(bce.item())
                 self.record_set['mse'].append(mse.item())
                 self.record_set['bces'].append(bce_list)
@@ -295,7 +292,7 @@ class Trainer_Scalable():
                 self.record_set['bits_b'].append(bits_b_avg.item())
                 self.record_set['bits_e'].append(bits_e_avg.item())
                 self.record_set['sum_loss'].append(sum_loss.item())
-                self.record_set['metrics'].append(metrics)
+                self.record_set['metrics'].append(metrics_calculator)
 
                 self.accuracy_set['number_correct'].append(running_corrects_class.item())
                 self.accuracy_set['total_number'].append(labels.size(0))

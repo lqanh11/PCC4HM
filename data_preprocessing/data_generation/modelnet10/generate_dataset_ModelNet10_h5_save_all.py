@@ -89,8 +89,8 @@ def process_cloud(cloud, num_points_resample):
                 idx = np.random.choice(
                     len(points[resolution]), missing_points, replace=False
                 )
-                list_idx = np.array(list(range(len(cloud.points)))) 
-                new_idx = np.concatenate((list_idx, idx))
+                all_idx = np.array(list(range(len(points[resolution])))) 
+                new_idx = np.concatenate((all_idx, idx))
                 list_idx[num_points_subsample] = new_idx
 
         points_512[resolution] = points[resolution][list_idx[512]]
@@ -130,26 +130,26 @@ if __name__ == "__main__":
                 ) for i in range(len(shape_ids['all']))]
     
     for index in tqdm(range(len(datapath)), total=len(datapath)):
-        fn = datapath[index]
-        cls = classes[datapath[index][0]]
-        cls = np.array([cls]).astype(np.uint8)
+            fn = datapath[index]
+            cls = classes[datapath[index][0]]
+            cls = np.array([cls]).astype(np.uint8)
 
-        h5_file_path = fn[2]
-        if os.path.exists(h5_file_path): os.remove(h5_file_path)
-        save_h5_file = h5py.File(h5_file_path, 'w')
+            h5_file_path = fn[2]
+            if os.path.exists(h5_file_path): os.remove(h5_file_path)
+            save_h5_file = h5py.File(h5_file_path, 'w')
 
-        # read mesh file
-        cloud = PyntCloud.from_file(fn[1])
-        # mesh to point cloud process
-        points, points_512, points_1024, points_2048 = process_cloud(cloud, 500000)
-        
-        for resolution in [64, 128, 256, 512, 1024]:
-            save_h5_file.create_dataset(f"points_{resolution}", data = points[resolution])
-            save_h5_file.create_dataset(f"points_512_{resolution}", data = points_512[resolution])
-            save_h5_file.create_dataset(f"points_1024_{resolution}", data = points_1024[resolution])
-            save_h5_file.create_dataset(f"points_2048_{resolution}", data = points_2048[resolution])
-        save_h5_file.create_dataset(f"class", data = cls)
-        save_h5_file.create_dataset(f"class_name", data = fn[0])
+            # read mesh file
+            cloud = PyntCloud.from_file(fn[1])
+            # mesh to point cloud process
+            points, points_512, points_1024, points_2048 = process_cloud(cloud, 500000)
+            
+            for resolution in [64, 128, 256, 512, 1024]:
+                save_h5_file.create_dataset(f"points_{resolution}", data = points[resolution])
+                save_h5_file.create_dataset(f"points_512_{resolution}", data = points_512[resolution])
+                save_h5_file.create_dataset(f"points_1024_{resolution}", data = points_1024[resolution])
+                save_h5_file.create_dataset(f"points_2048_{resolution}", data = points_2048[resolution])
+            save_h5_file.create_dataset(f"class", data = cls)
+            save_h5_file.create_dataset(f"class_name", data = fn[0])
 
     # for resolution in [64, 128, 256, 512, 1024]:
     #     for num_points_subsample in [1024, 2048]:

@@ -64,7 +64,7 @@ parser.add_argument("--num_points", type=int, default=1024)
 parser.add_argument("--voxel_size", type=float, default=1)
 parser.add_argument("--max_steps", type=int, default=50000)
 parser.add_argument("--val_freq", type=int, default=1000)
-parser.add_argument("--batch_size", default=64, type=int)
+parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--lr", default=1e-1, type=float)
 parser.add_argument("--weight_decay", type=float, default=1e-4)
 parser.add_argument("--num_workers", type=int, default=2)
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
     config = parser.parse_args()
     logdir = os.path.join('/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/', 
-                          'classification_modelnet10_voxelize', str(config.num_points), config.network)
+                          'classification_modelnet10_voxelize', str(config.num_points), config.network + '_' + config.data_root.split('/')[-1])
     os.makedirs(logdir, exist_ok=True)
     logger = getlogger(logdir)
     

@@ -371,10 +371,40 @@ class Decoder(torch.nn.Module):
 class Adapter(torch.nn.Module):
     def __init__(self, channels=[8,4]):
         super().__init__()
+        self.up0 = ME.MinkowskiGenerativeConvolutionTranspose(
+            in_channels=channels[0],
+            out_channels=channels[1],
+            kernel_size=2,
+            stride=2,
+            bias=True,
+            dimension=3)
         self.conv0 = ME.MinkowskiConvolution(
             in_channels=channels[0],
             out_channels=channels[1],
             kernel_size=3,
+            stride=1,
+            bias=True,
+            dimension=3)
+        self.block0 = make_layer(
+            block=InceptionResNet,
+            block_layers=1, 
+            channels=channels[1])
+        
+        self.relu = ME.MinkowskiReLU(inplace=True)
+
+    def forward(self, x):
+        out = self.relu(self.conv0(self.relu(self.up0(x))))
+        out = self.block0(out)
+        return out
+
+
+class TransposeAdapter(torch.nn.Module):
+    def __init__(self, channels=[4,8]):
+        super().__init__()
+        self.conv0 = ME.MinkowskiConvolution(
+            in_channels=channels[0],
+            out_channels=channels[1],
+            kernel_size= 3,
             stride=1,
             bias=True,
             dimension=3)
@@ -387,37 +417,7 @@ class Adapter(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=3, 
-            channels=channels[1])
-        
-        self.relu = ME.MinkowskiReLU(inplace=True)
-
-    def forward(self, x):
-        out0 = self.relu(self.down0(self.relu(self.conv0(x))))
-        out0 = self.block0(out0)
-        return out0
-
-
-class TransposeAdapter(torch.nn.Module):
-    def __init__(self, channels=[4,8]):
-        super().__init__()
-        self.up0 = ME.MinkowskiGenerativeConvolutionTranspose(
-            in_channels=channels[0],
-            out_channels=channels[1],
-            kernel_size=2,
-            stride=2,
-            bias=True,
-            dimension=3)
-        self.conv0 = ME.MinkowskiConvolution(
-            in_channels=channels[1],
-            out_channels=channels[1],
-            kernel_size= 3,
-            stride=1,
-            bias=True,
-            dimension=3)
-        self.block0 = make_layer(
-            block=InceptionResNet,
-            block_layers=3, 
+            block_layers=1, 
             channels=channels[1])
         self.conv0_cls = ME.MinkowskiConvolution(
             in_channels=channels[1],
@@ -432,14 +432,14 @@ class TransposeAdapter(torch.nn.Module):
     
     def prune_voxel(self, data, data_cls, nums, ground_truth, training):
         mask_topk = istopk(data_cls, nums)
-        # if training: 
-        #     assert not ground_truth is None
-        #     mask_true = isin(data_cls.C, ground_truth.C)
-        #     mask = mask_topk + mask_true
-        # else: 
-        #     mask = mask_topk
+        if training: 
+            assert not ground_truth is None
+            mask_true = isin(data_cls.C, ground_truth.C)
+            mask = mask_topk + mask_true
+        else: 
+            mask = mask_topk
 
-        mask = mask_topk
+        # mask = mask_topk
 
         data_pruned = self.pruning(data, mask.to(data.device))
 
@@ -447,7 +447,8 @@ class TransposeAdapter(torch.nn.Module):
 
     def forward(self, x, nums_list, ground_truth_list, training=True):
         #
-        out = self.relu(self.conv0(self.relu(self.up0(x))))
+        
+        out = self.relu(self.down0(self.relu(self.conv0(x))))
         out = self.block0(out)
         out_cls_0 = self.conv0_cls(out)
         out = self.prune_voxel(out, out_cls_0, 
@@ -458,24 +459,24 @@ class TransposeAdapter(torch.nn.Module):
 
 class LatentSpaceTransform(torch.nn.Module):
     def __init__(self, channels=[4, 8]):
-        super().__init__()  
-        self.up0 = ME.MinkowskiGenerativeConvolutionTranspose(
-            in_channels=channels[0],
-            out_channels=channels[1],
-            kernel_size=2,
-            stride=2,
-            bias=True,
-            dimension=3)
+        super().__init__()        
         self.conv0 = ME.MinkowskiConvolution(
-            in_channels=channels[1],
+            in_channels=channels[0],
             out_channels=channels[1],
             kernel_size= 3,
             stride=1,
             bias=True,
             dimension=3)
+        self.down0 = ME.MinkowskiConvolution(
+            in_channels=channels[1],
+            out_channels=channels[1],
+            kernel_size=2,
+            stride=2,
+            bias=True,
+            dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=3, 
+            block_layers=1, 
             channels=channels[1])
         self.conv0_cls = ME.MinkowskiConvolution(
             in_channels=channels[1],
@@ -501,7 +502,7 @@ class LatentSpaceTransform(torch.nn.Module):
 
     def forward(self, x, num_points, x_fix_pts, training=True):
         #
-        out = self.relu(self.conv0(self.relu(self.up0(x))))
+        out = self.relu(self.down0(self.relu(self.conv0(x))))
         out_cls_0 = self.conv0_cls(out)
         out = self.prune_voxel(out_cls_0, out_cls_0, num_points, x_fix_pts, training)
 

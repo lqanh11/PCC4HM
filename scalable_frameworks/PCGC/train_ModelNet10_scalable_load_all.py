@@ -6,7 +6,7 @@ import torch
 import MinkowskiEngine as ME
 # from data_loader import PCDataset, make_data_loader
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
-from pcc_model_scalable import PCCModel_Scalable_BCE, PCCModel
+from pcc_model_scalable import PCCModel, PCCModel_Scalable_ForBest
 from classification_model import MinkowskiFCNN
 from trainer_scalable_load_all import Trainer_Load_All
 
@@ -14,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/c/')
+    parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
 
     parser.add_argument("--alpha", type=float, default=16000., help="weights for distoration.")
@@ -25,9 +25,9 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=8e-4)
 
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--epoch", type=int, default=10)
+    parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='scalable_modelnet10_dense_FIXreconstruction_TRAINcls1024conv2mse_LEAVEtransposed', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231212_scalable_modelnet10_dense_FIXreconstruction_TRAINcls1024conv2mse_LEAVEtransposed', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     
 
     # model
-    model = PCCModel_Scalable_BCE()
+    model = PCCModel_Scalable_ForBest()
     model_dict = model.state_dict()
 
     ## load pre-trained model

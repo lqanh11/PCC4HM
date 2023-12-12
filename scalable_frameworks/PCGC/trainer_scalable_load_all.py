@@ -155,7 +155,7 @@ class Trainer_Load_All():
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
             # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            sum_loss = self.config.alpha * bce_LST + self.config.beta * bits_b_avg
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
 
             # statistics
             logits = out_set['logits']
@@ -218,7 +218,7 @@ class Trainer_Load_All():
         params_to_train = ['entropy_bottleneck_b', 
                            'adapter',
                            'latentspace_transform',
-                        #    'classifier'
+                           'classifier'
                            ]
         ## enhancemet
         # params_to_train = ['entropy_bottleneck_e', 
@@ -282,7 +282,7 @@ class Trainer_Load_All():
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
             # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            sum_loss = self.config.alpha * bce_LST + self.config.beta * bits_b_avg
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
 
             # # backward & optimize
             # sum_loss.requires_grad = True

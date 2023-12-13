@@ -379,7 +379,7 @@ class Adapter(torch.nn.Module):
             bias=True,
             dimension=3)
         self.conv0 = ME.MinkowskiConvolution(
-            in_channels=channels[0],
+            in_channels=channels[1],
             out_channels=channels[1],
             kernel_size=3,
             stride=1,
@@ -387,7 +387,7 @@ class Adapter(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=1, 
+            block_layers=0, 
             channels=channels[1])
         
         self.relu = ME.MinkowskiReLU(inplace=True)
@@ -417,7 +417,7 @@ class TransposeAdapter(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=1, 
+            block_layers=0, 
             channels=channels[1])
         self.conv0_cls = ME.MinkowskiConvolution(
             in_channels=channels[1],
@@ -476,7 +476,7 @@ class LatentSpaceTransform(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=1, 
+            block_layers=0, 
             channels=channels[1])
         self.conv0_cls = ME.MinkowskiConvolution(
             in_channels=channels[1],
@@ -490,21 +490,28 @@ class LatentSpaceTransform(torch.nn.Module):
     
     def prune_voxel(self, data, data_cls, nums, ground_truth, training):
         mask_topk = istopk(data_cls, nums)
-        if training: 
-            assert not ground_truth is None
-            mask_true = isin(data_cls.C, ground_truth.C)
-            mask = mask_topk + mask_true
-        else: 
-            mask = mask_topk
+        # if training: 
+        #     assert not ground_truth is None
+        #     mask_true = isin(data_cls.C, ground_truth.C)
+        #     mask = mask_topk + mask_true
+        # else: 
+        #     mask = mask_topk
+        # data_pruned = self.pruning(data, mask.to(data.device))
+
+        mask = mask_topk
         data_pruned = self.pruning(data, mask.to(data.device))
 
         return data_pruned
 
     def forward(self, x, num_points, x_fix_pts, training=True):
         #
-        out = self.relu(self.down0(self.relu(self.conv0(x))))
-        out_cls_0 = self.conv0_cls(out)
-        out = self.prune_voxel(out_cls_0, out_cls_0, num_points, x_fix_pts, training)
+        out = self.conv0(x)
+        out = self.relu(out)
+        out = self.down0(out)
+        out = self.relu(out)
+
+        out_cls = self.conv0_cls(out)
+        out = self.prune_voxel(out_cls, out_cls, num_points, x_fix_pts, training)
 
         return out
         

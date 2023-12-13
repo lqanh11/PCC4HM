@@ -9,6 +9,7 @@ from data_loader_h5 import PCDataset_LoadAll, make_data_loader
 from pcc_model_scalable import PCCModel, PCCModel_Scalable_ForBest
 from classification_model import MinkowskiFCNN
 from trainer_scalable_load_all import Trainer_Load_All
+import random
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -27,7 +28,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231212_scalable_modelnet10_dense_FIXreconstruction_TRAINcls1024conv2mse_LEAVEtransposed', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231213_modelnet10_dense_FIXreconstruction_TRAINclsOnly_WithoutCoding', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -69,6 +70,8 @@ def get_file_dirs(root_path):
     for filename in os.listdir(os.path.join(root_path, 'test')):
         test_file_dirs.append(os.path.abspath(os.path.join(root_path, 'test', filename)))
 
+    random.shuffle(train_file_dirs)
+    random.shuffle(test_file_dirs)
 
     print('Train: ', len(train_file_dirs), 
         'Test: ', len(test_file_dirs))
@@ -120,9 +123,9 @@ if __name__ == '__main__':
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        if("classifier" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[1:])
-            processed_dict[k] = model_classification_dict[pretrained_key] 
+        # if("classifier" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[1:])
+        #     processed_dict[k] = model_classification_dict[pretrained_key] 
 
         for k in processed_dict.keys(): 
             model_dict[k] = processed_dict[k]

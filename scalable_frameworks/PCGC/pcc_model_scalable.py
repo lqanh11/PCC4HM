@@ -18,7 +18,7 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
         self.adapter = Adapter(channels=[8,8])
         self.transpose_adapter = TransposeAdapter(channels=[8,8])
         self.latentspace_transform = LatentSpaceTransform(channels=[8,8])
-        self.classifier = MinkowskiFCNN(in_channel=3, out_channel=10, embedding_channel=1024)
+        self.classifier = MinkoPointNet_Conv_2(in_channel=64, out_channel=10, embedding_channel=1024)
         
 
     def get_likelihood_o(self, data, quantize_mode):
@@ -86,7 +86,7 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
             features=points_norm,
             device=pred_fix_pts.device
         )
-        logits = self.classifier(input_classifier)
+        logits = self.classifier(y_list[1])
 
         # Transpose adapter
         nums_list_for_e = [[len(C) for C in y.decomposed_coordinates] \

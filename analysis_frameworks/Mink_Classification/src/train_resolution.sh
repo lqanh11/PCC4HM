@@ -1,31 +1,25 @@
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_2048/voxelized_64"\
-                                             --num_points=2048 &&\
+DATASET_FOLDERS=(
+  "/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_64" 
+  "/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_128"
+  "/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_256"
+  "/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_512"
+  "/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_1024"
+)
 
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_2048/voxelized_128"\
-                                             --num_points=2048 &&\
-                                        
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_2048/voxelized_256"\
-                                             --num_points=2048 &&\
+MODEL_LIST=(
+    "minkpointnet"
+    "minksplatfcnn"
+    "minkpointnet_conv_2"
+)
 
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_2048/voxelized_512"\
-                                             --num_points=2048 &&\
-
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_2048/voxelized_1024"\
-                                             --num_points=2048 &&\   
-
-
-
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_64"\
-                                             --num_points=1024 &&\
-
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_128"\
-                                             --num_points=1024 &&\
-                                        
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_256"\
-                                             --num_points=1024 &&\
-
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_512"\
-                                             --num_points=1024 &&\
-
-python classification_modelnet10_voxelize.py --data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_1024/voxelized_1024"\
-                                             --num_points=1024 &&\                                                                                        
+for dataset in "${DATASET_FOLDERS[@]}"
+do 
+  echo $dataset
+  for model_name in "${MODEL_LIST[@]}"
+    do
+    python classification_modelnet10_voxelize.py --data_root=$dataset\
+                                                 --num_points=1024\
+                                                 --network=$model_name\
+                                                       
+    done
+done

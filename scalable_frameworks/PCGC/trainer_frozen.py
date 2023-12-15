@@ -4,10 +4,28 @@ import numpy as np
 import torch
 import MinkowskiEngine as ME
 import sklearn.metrics as metrics
+import copy
 
 from loss import get_bce, get_CE_loss, get_bits, get_metrics
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 from tensorboardX import SummaryWriter
+
+def create_input_batch_dense(batch, device="cuda", quantization_size=1):
+    
+    batch["dense_coordinates"][:, 1:] = batch["dense_coordinates"][:, 1:] / quantization_size
+    return ME.SparseTensor(
+        coordinates=batch["dense_coordinates"],
+        features=batch["dense_features"],
+        device=device,
+    )
+def create_input_batch(batch, device="cuda", quantization_size=1):
+    
+    batch["sparse_coordinates"][:, 1:] = batch["sparse_coordinates"][:, 1:] / quantization_size
+    return ME.TensorField(
+        coordinates=batch["sparse_coordinates"],
+        features=batch["sparse_features"],
+        device=device,
+    )
 
 
 class Trainer():
@@ -86,38 +104,6 @@ class Trainer():
             self.record_set[k] = []  
 
         return 
-
-    @torch.no_grad()
-    def validation(self, dataloader, main_tag='Validation'):        
-        self.logger.info('Validation Files length:' + str(len(dataloader)))
-        for idx, (coords, feats, labels) in enumerate(tqdm(dataloader)):
-            # data
-            x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            # # Forward.
-            out_set = self.model(x, training=False)
-            # loss    
-            bce, bce_list = 0, []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
-                bce += curr_bce 
-                bce_list.append(curr_bce.item())
-            bpp = get_bits(out_set['likelihood'])/float(x.__len__())
-            sum_loss = self.config.alpha * bce + self.config.beta * bpp
-            metrics = []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                metrics.append(get_metrics(out_cls, ground_truth))
-            # record
-            self.record_set['bce'].append(bce.item())
-            self.record_set['bces'].append(bce_list)
-            self.record_set['bpp'].append(bpp.item())
-            self.record_set['sum_loss'].append(bce.item() + bpp.item())
-            self.record_set['metrics'].append(metrics)
-
-            torch.cuda.empty_cache()# empty cache.
-
-        self.record(main_tag=main_tag, global_step=self.epoch)
-
-        return
     
     @torch.no_grad()
     def test(self, dataloader, main_tag='Test'):
@@ -125,14 +111,24 @@ class Trainer():
         self.logger.info('Testing Files length:' + str(len(dataloader)))
 
         labels_list, preds_list = [], []
-
-        for idx, (coords, feats, labels) in enumerate(tqdm(dataloader)):
+        
+        self.model.eval()
+        for batch_step, batch in enumerate(tqdm(dataloader)):
             # data
-            x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            labels = torch.from_numpy(np.array(labels))
+            x = create_input_batch_dense(
+                    batch,
+                    device=device,
+                    quantization_size=1,
+                )
+                
+            x_fix_pts = create_input_batch(
+                batch,
+                device=device,
+                quantization_size=1,
+                )
             
             # # Forward.
-            out_set = self.model(x, training=False)
+            out_set = self.model(x, x_fix_pts, training=False)
             # loss    
             bce, bce_list = 0, []
             for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
@@ -147,7 +143,7 @@ class Trainer():
             logit = out_set['logits']
             pred = torch.argmax(logit, 1)
 
-            labels_list.append(labels.cpu().numpy())
+            labels_list.append(batch["labels"].cpu().numpy())
             preds_list.append(pred.cpu().numpy())
 
             sum_loss = self.config.alpha * bce + self.config.beta * bpp
@@ -185,6 +181,7 @@ class Trainer():
         params_to_frezee = ['encoder', 
                            'decoder',
                            'entropy_bottleneck',
+                           'classifier'
                            ]
         for name, param in self.model.named_parameters():
             # Set True only for params in the list 'params_to_train'
@@ -195,14 +192,22 @@ class Trainer():
                 param.requires_grad = True
 
         start_time = time.time()
-        for batch_step, (coords, feats, labels) in enumerate(tqdm(dataloader)):
+        for batch_step, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
             self.optimizer.zero_grad()
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+
+            ## true input for classifier
+            x_fix_pts = ME.SparseTensor(
+                features=feats_fix_pts,
+                coordinates=coords_fix_pts,
+                device=device
+            )
+
             labels = torch.from_numpy(np.array(labels))
             # if x.shape[0] > 6e5: continue
             # forward
-            out_set = self.model(x, training=True)
+            out_set = self.model(x, x_fix_pts, training=True)
             # loss    
             bce, bce_list = 0, []
             for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
@@ -220,7 +225,7 @@ class Trainer():
 
             # sum_loss = self.config.alpha * bce + self.config.beta * bpp
             # backward & optimize
-            # sum_loss.requires_grad = True
+            sum_loss.requires_grad = True
             sum_loss.backward()
             self.optimizer.step()
             # metric & record
@@ -235,13 +240,10 @@ class Trainer():
                 self.record_set['sum_loss'].append(bce.item() + bpp.item())
                 self.record_set['metrics'].append(metrics)
 
-                if (time.time() - start_time) > self.config.check_time*60:
-                    self.record(main_tag='Train', global_step=self.epoch*len(dataloader)+batch_step)
-                    self.save_model()
-                    start_time = time.time()
-            torch.cuda.empty_cache()# empty cache.
+            torch.cuda.empty_cache() # empty cache.
 
-        with torch.no_grad(): self.record(main_tag='Train', global_step=self.epoch*len(dataloader)+batch_step)
+        with torch.no_grad(): 
+            self.record(main_tag='Train', global_step=self.epoch*len(dataloader)+batch_step)
         self.save_model()
         self.epoch += 1
 

@@ -4,15 +4,17 @@ import numpy as np
 import pandas as pd
 import torch
 import MinkowskiEngine as ME
-from data_loader_classification import PCDataset_Classification, make_data_loader
+from data_loader_h5 import ModelNetH5_voxelize_all, make_data_loader_minkowski
 from pcc_model_scalable import PCCModel, PCCModel_Classification
+from classification_model import MinkowskiPointNet
 from trainer_frozen import Trainer
 import random
+import sklearn.metrics as metrics
 
 def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--data_split_path", default='/media/avitech/Data/quocanhle/PointCloud/data_split/modelnet10/resample/128_dense')
+    parser.add_argument("--data_split_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
 
     parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
@@ -21,7 +23,7 @@ def parse_args():
     parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=10)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
     parser.add_argument("--prefix", type=str, default='20231210_modelnet10_reconstruction_frozen_train_cls_000', help="prefix of checkpoints/logger, etc.")
@@ -51,31 +53,71 @@ class TrainingConfig():
         self.check_time=check_time
 
 
-def get_file_dirs(data_split_path):
-    ## ModelNet10
-    train_list_file = ['ply_data_train_file.csv']
-    test_list_file = ['ply_data_test_file.csv']
+def get_file_dirs(root_path):
 
     train_file_dirs = []
     test_file_dirs = []
 
-    for train_file in train_list_file:
-        df = pd.read_csv(os.path.join(data_split_path, train_file))
-        for file_dir in df.values:
-            train_file_dirs.append(file_dir[1])
+    ## ModelNet10
+    for filename in os.listdir(os.path.join(root_path, 'train')):
+        train_file_dirs.append(os.path.abspath(os.path.join(root_path, 'train', filename)))
+    for filename in os.listdir(os.path.join(root_path, 'test')):
+        test_file_dirs.append(os.path.abspath(os.path.join(root_path, 'test', filename)))
 
-    for test_file in test_list_file:
-        df = pd.read_csv(os.path.join(data_split_path, test_file))
-        for file_dir in df.values:
-            test_file_dirs.append(file_dir[1])
+    random.shuffle(train_file_dirs)
+    random.shuffle(test_file_dirs)
 
     print('Train: ', len(train_file_dirs), 
         'Test: ', len(test_file_dirs))
     
-    random.shuffle(train_file_dirs)
-
     return {'Train':train_file_dirs[:], 
             'Test':test_file_dirs[:]}
+
+
+def create_input_batch_dense(batch, device="cuda", quantization_size=1):
+    
+    batch["dense_coordinates"][:, 1:] = batch["dense_coordinates"][:, 1:] / quantization_size
+    return ME.SparseTensor(
+        coordinates=batch["dense_coordinates"],
+        features=batch["dense_features"],
+        device=device,
+    )
+def create_input_batch(batch, device="cuda", quantization_size=1):
+    
+    batch["sparse_coordinates"][:, 1:] = batch["sparse_coordinates"][:, 1:] / quantization_size
+    return ME.TensorField(
+        coordinates=batch["sparse_coordinates"],
+        features=batch["sparse_features"],
+        device=device,
+    )
+
+# def test(model_classification, test_dataloader, device):
+#         is_minknet = isinstance(model_classification, ME.MinkowskiNetwork)
+#         data_loader = test_dataloader
+#         model_classification.to(device)
+#         model_classification.eval()
+#         labels, preds = [], []
+#         with torch.no_grad():
+#             for batch in data_loader:
+#                 dense_input = create_input_batch_dense(
+#                     batch,
+#                     device=device,
+#                     quantization_size=1,
+#                 )
+                
+#                 input = create_input_batch(
+#                     batch,
+#                     device=device,
+#                     quantization_size=1,
+#                 )
+
+#                 out = model_classification(dense_input, input, False)
+#                 pred = torch.argmax(out['logits'], 1)
+#                 labels.append(batch["labels"].cpu().numpy())
+#                 preds.append(pred.cpu().numpy())
+#                 torch.cuda.empty_cache()
+#         return metrics.accuracy_score(np.concatenate(labels), np.concatenate(preds))
+
 
 if __name__ == '__main__':
     # log
@@ -99,6 +141,11 @@ if __name__ == '__main__':
     model_compression.load_state_dict(ckpt_compression['model'])
     model_compression_dict = model_compression.state_dict()
 
+    model_classification = MinkowskiPointNet(in_channel=3, out_channel=10, embedding_channel=1024)
+    ckpt_cls = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/classification_modelnet10_voxelize/1024/minkpointnet_voxelized_128/modelnet_minkpointnet.pth")
+    model_classification.load_state_dict(ckpt_cls['state_dict'])
+    model_classification_dict = model_classification.state_dict()
+
     processed_dict = {}
 
     for k in model_dict.keys(): 
@@ -112,16 +159,17 @@ if __name__ == '__main__':
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
+        if("classifier" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[1:])
+            processed_dict[k] = model_classification_dict[pretrained_key] 
     # If load processed dict the model did not have the same performance
     # with pretrained model. I assume that the weight state dict dose not
     # as the same with the original. Therefore, I create a for loop to 
     # copy the weights to the original dict of the model.
-    for k in processed_dict.keys(): 
-        model_dict[k] = processed_dict[k]
     
-    ## check state dict 
+    # check state dict 
     # models_differ = 0
-    # for key_item_1, key_item_2 in zip(model_dict.items(), model_compression_dict.items()):
+    # for key_item_1, key_item_2 in zip(model_dict.items(), processed_dict.items()):
     #     if torch.equal(key_item_1[1], key_item_2[1]):
     #         pass
     #     else:
@@ -133,25 +181,36 @@ if __name__ == '__main__':
     # if models_differ == 0:
     #     print('Models match perfectly! :)')
 
-    model.load_state_dict(model_dict)
+    model.load_state_dict(processed_dict)
     
     # trainer    
     trainer = Trainer(config=training_config, model=model)
 
     # dataset
-    filedirs = get_file_dirs(args.data_split_path)
+    # filedirs = get_file_dirs(args.data_split_path)
     
-    train_dataset = PCDataset_Classification(filedirs['Train'])
-    train_dataloader = make_data_loader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
+    train_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
+                                            phase='train', 
+                                            resolution=128, 
+                                            num_points=1024)
+    train_dataloader = make_data_loader_minkowski(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
 
     # val_dataset = PCDataset(filedirs['Val'])
     # val_dataloader = make_data_loader(dataset=val_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
     
-    test_dataset = PCDataset_Classification(filedirs['Test'])
-    test_dataloader = make_data_loader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
+    test_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
+                                            phase='test', 
+                                            resolution=128, 
+                                            num_points=1024)
+    test_dataloader = make_data_loader_minkowski(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
+
+        
+
+    # accuracy = test(model, test_dataloader, 'cuda')
+    # print(f"Test accuracy: {accuracy}")
 
     # training
     for epoch in range(0, args.epoch):
         if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
-        trainer.train(train_dataloader)
+        # trainer.train(train_dataloader)
         trainer.test(test_dataloader, 'Test')

@@ -373,7 +373,7 @@ class PCCModel_Classification(torch.nn.Module):
         self.encoder = Encoder(channels=[1,16,32,64,32,8])
         self.decoder = Decoder(channels=[8,64,32,16])
         self.entropy_bottleneck = EntropyBottleneck(8)
-        self.classifier = MinkoPointNet_Conv_2(in_channel=8, out_channel=10, embedding_channel=1024)
+        self.classifier = MinkowskiPointNet(in_channel=3, out_channel=10, embedding_channel=1024)
 
     def get_likelihood(self, data, quantize_mode):
         data_F, likelihood = self.entropy_bottleneck(data.F,
@@ -386,7 +386,7 @@ class PCCModel_Classification(torch.nn.Module):
 
         return data_Q, likelihood
 
-    def forward(self, x, training=True):
+    def forward(self, x, x_fix_pts, training=True):
         # Encoder
         y_list = self.encoder(x)
         y = y_list[0]
@@ -399,7 +399,7 @@ class PCCModel_Classification(torch.nn.Module):
             quantize_mode="noise" if training else "symbols")
         
         # classification
-        logits = self.classifier(y_q)
+        logits = self.classifier(x_fix_pts)
 
         # Decoder
         out_cls_list, out = self.decoder(y_q, nums_list, ground_truth_list, training)

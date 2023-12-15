@@ -107,6 +107,16 @@ def sort_spare_tensor(sparse_tensor):
 
     return sparse_tensor_sort
 
+def load_sparse_tensor_h5_all(filedir, resolution, device):
+    pc = h5py.File(filedir, 'r')[f'points_{resolution}'][:]
+    coords = torch.tensor(pc[:,0:3].astype('int'))
+    
+    feats = torch.ones((len(coords),1)).float()
+    coords, feats = ME.utils.sparse_collate([coords], [feats])
+    x = ME.SparseTensor(features=feats, coordinates=coords, tensor_stride=1, device=device)
+    
+    return x, pc
+
 def load_sparse_tensor(filedir, device):
     if filedir.endswith('.h5'): coords = torch.tensor(read_h5_geo(filedir)).int()
     if filedir.endswith('.ply'): coords = torch.tensor(read_ply_ascii_geo(filedir)).int()

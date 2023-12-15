@@ -351,9 +351,76 @@ class ModelNet40H5_voxelize(Dataset):
 
     def __repr__(self):
         return f"ModelNet40H5(phase={self.phase}, length={len(self)}, transform={self.transform})"
+    
+class ModelNetH5_voxelize_all(Dataset):
+    def __init__(
+        self,
+        phase: str,
+        data_root: str = "modelnet40h5",
+        transform=None,
+        num_points=1024,
+        resolution=128
+    ):
+        Dataset.__init__(self)
+        # download_modelnet40_dataset()
+        phase = "test" if phase in ["val", "test"] else "train"
+        self.transform = transform
+        self.phase = phase
+        self.num_points = num_points
+        self.resolution = resolution
+
+        self.data, self.label = self.load_data(data_root, phase)
+        
+
+    def load_data(self, data_root, phase):
+        data, labels = [], []
+
+        assert os.path.exists(data_root), f"{data_root} does not exist"
+        files = glob.glob(os.path.join(data_root, phase, "*.h5"))
+        assert len(files) > 0, "No files found"
+        for h5_name in files:
+            with h5py.File(h5_name) as f:
+                data.append(f[f"points_{self.num_points}_{self.resolution}"][:].astype("float32"))
+                labels.append(f["class"][:].astype("int64"))
+
+        return data, labels
+
+    def __getitem__(self, i: int) -> dict:
+        xyz = self.data[i]
+        if self.phase == "train":
+            np.random.shuffle(xyz)
+        if len(xyz) > self.num_points:
+            xyz = xyz[: self.num_points]
+        if self.transform is not None:
+            xyz = self.transform(xyz)
+        label = self.label[i]
+        xyz_torch = torch.from_numpy(xyz)
+
+        # normalize coordinate for feature
+        xyz = torch.from_numpy(xyz)
+        xyz = xyz - xyz.mean(axis=0)
+        xyz_norm = torch.sqrt((xyz**2).sum(axis=1))
+        xyz = xyz / xyz_norm.max()
+
+        
+        label = torch.from_numpy(label)
+
+        return {
+            "coordinates": xyz_torch.to(torch.float32),
+            "features": xyz.to(torch.float32),
+            "label": label,
+        }
+
+    def __len__(self):
+        return len(self.data)
+
+    def __repr__(self):
+        return f"ModelNetH5_voxelize_all(phase={self.phase}, length={len(self)}, transform={self.transform})"
 
 if __name__ == "__main__":
-    dataset = ModelNet40H5(phase="train", data_root="modelnet40_ply_hdf5_2048")
+    dataset = ModelNetH5_voxelize_all(phase="train", 
+                                      data_root="/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/"
+                                      )
     # Use stack_collate_fn for pointnet
     pointnet_data_loader = DataLoader(
         dataset, num_workers=4, collate_fn=stack_collate_fn, batch_size=16,

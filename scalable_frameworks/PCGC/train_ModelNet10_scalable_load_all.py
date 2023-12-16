@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
 
-    parser.add_argument("--alpha", type=float, default=16000., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231213_modelnet10_dense_FIXreconstruction_TRAINclsOnly_WithoutCoding', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231215_modelnet10_dense_FIXrec_FIXbase_TRAINres', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -99,18 +99,39 @@ if __name__ == '__main__':
     model = PCCModel_Scalable_ForBest()
     model_dict = model.state_dict()
 
+
+    state_dict = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/20231213_modelnet10_dense_FIXrec_TRAINbase_LEAVEres_alpha_16000.0_000/ckpts/epoch_10.pth")
+    model_compression_dict = state_dict["model"]
     ## load pre-trained model
-    model_compression = PCCModel()
+    # model_compression = PCCModel()
 
-    ckpt_compression = torch.load("/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth")
-    model_compression.load_state_dict(ckpt_compression['model'])
-    model_compression_dict = model_compression.state_dict()
+    # ckpt_compression = torch.load("/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth")
+    # model_compression.load_state_dict(ckpt_compression['model'])
+    # model_compression_dict = model_compression.state_dict()
 
-    model_classification = MinkowskiFCNN(in_channel=3, out_channel=10, embedding_channel=1024)
-    ckpt_cls = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/classification_modelnet10_voxelize/2048/minkfcnn_voxelized_128/modelnet_minkfcnn.pth")
-    model_classification.load_state_dict(ckpt_cls['state_dict'])
-    model_classification_dict = model_classification.state_dict()
+    # model_classification = MinkowskiFCNN(in_channel=3, out_channel=10, embedding_channel=1024)
+    # ckpt_cls = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/classification_modelnet10_voxelize/2048/minkfcnn_voxelized_128/modelnet_minkfcnn.pth")
+    # model_classification.load_state_dict(ckpt_cls['state_dict'])
+    # model_classification_dict = model_classification.state_dict()
 
+    # processed_dict = {}
+    # for k in model_dict.keys(): 
+    #     decomposed_key = k.split(".")
+    #     if("encoder" in decomposed_key):
+    #         pretrained_key = ".".join(decomposed_key[:])
+    #         processed_dict[k] = model_compression_dict[pretrained_key] 
+    #     if("decoder" in decomposed_key):
+    #         pretrained_key = ".".join(decomposed_key[:])
+    #         processed_dict[k] = model_compression_dict[pretrained_key]
+    #     if("entropy_bottleneck" in decomposed_key):
+    #         pretrained_key = ".".join(decomposed_key[:])
+    #         processed_dict[k] = model_compression_dict[pretrained_key]
+    #     # if("classifier" in decomposed_key):
+    #     #     pretrained_key = ".".join(decomposed_key[1:])
+    #     #     processed_dict[k] = model_classification_dict[pretrained_key] 
+
+    #     for k in processed_dict.keys(): 
+    #         model_dict[k] = processed_dict[k]
     processed_dict = {}
     for k in model_dict.keys(): 
         decomposed_key = k.split(".")
@@ -123,9 +144,18 @@ if __name__ == '__main__':
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("classifier" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[1:])
-        #     processed_dict[k] = model_classification_dict[pretrained_key] 
+        if("entropy_bottleneck_b" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
+        if("adapter" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
+        if("latentspace_transform" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
+        if("classifier" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
 
         for k in processed_dict.keys(): 
             model_dict[k] = processed_dict[k]

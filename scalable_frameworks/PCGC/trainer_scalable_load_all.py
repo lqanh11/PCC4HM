@@ -29,6 +29,7 @@ class Trainer_Load_All():
                            'mses':[],
                            'ce_cls':[], 
                            'bpp':[], 
+                           'bpp_e':[], 
                            'bits': [],
                            'bits_b': [],
                            'bits_e': [],
@@ -110,7 +111,7 @@ class Trainer_Load_All():
         self.logger.info('Testing Files length:' + str(len(dataloader)))
 
         labels_list, preds_list = [], []
-
+        self.model.eval()
         for idx, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
@@ -149,14 +150,16 @@ class Trainer_Load_All():
             bits_e = get_bits(out_set['likelihood_e'])
             bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
+            bpp_e = bits_e / float(x.__len__())
+
             ## CE classification
             ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
             # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            sum_loss = ce_classification
+            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+            # sum_loss = ce_classification
 
             # statistics
             logits = out_set['logits']
@@ -180,6 +183,7 @@ class Trainer_Load_All():
             self.record_set['mses'].append(mse_list)
             self.record_set['ce_cls'].append(ce_classification.item())
             self.record_set['bpp'].append(bpp.item())
+            self.record_set['bpp_e'].append(bpp_e.item())
             self.record_set['bits'].append(bits_avg.item())
             self.record_set['bits_b'].append(bits_b_avg.item())
             self.record_set['bits_e'].append(bits_e_avg.item())
@@ -216,15 +220,19 @@ class Trainer_Load_All():
         #                    'classifier'
         #                    ]
         ## base
-        params_to_train = [#'entropy_bottleneck_b', 
-                        #    'adapter',
-                        #    'latentspace_transform',
-                           'classifier'
-                           ]
-        ## enhancemet
-        # params_to_train = ['entropy_bottleneck_e', 
-        #                    'transpose_adapter'
+        # params_to_train = [
+        #     'entropy_bottleneck_b', 
+        #     'adapter',
+        #     'latentspace_transform',
+        #     'classifier'
         #                    ]
+        ## enhancemet
+        params_to_train = [
+            'entropy_bottleneck_e', 
+            'transpose_adapter',
+            'analysis_residual',
+            'systhesis_residual',
+                           ]
         
         for name, param in self.model.named_parameters():
             # Set True only for params in the list 'params_to_train'
@@ -277,14 +285,16 @@ class Trainer_Load_All():
             bits_e = get_bits(out_set['likelihood_e'])
             bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
+            bpp_e = bits_e / float(x.__len__())
+
             ## CE classification
             ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
-            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            sum_loss = ce_classification
+            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_e_avg
+            # sum_loss = ce_classification
+            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
 
             # # backward & optimize
             # sum_loss.requires_grad = True
@@ -317,6 +327,7 @@ class Trainer_Load_All():
                 self.record_set['mses'].append(mse_list)
                 self.record_set['ce_cls'].append(ce_classification.item())
                 self.record_set['bpp'].append(bpp.item())
+                self.record_set['bpp_e'].append(bpp_e.item())
                 self.record_set['bits'].append(bits_avg.item())
                 self.record_set['bits_b'].append(bits_b_avg.item())
                 self.record_set['bits_e'].append(bits_e_avg.item())

@@ -151,29 +151,36 @@ class ModelNetH5_voxelize_all(Dataset):
         self.phase = phase
         self.num_points = num_points
         self.resolution = resolution
+        self.files = glob.glob(os.path.join(data_root, phase, "*.h5"))
 
-        self.data, self.data_fix_pts, self.label = self.load_data(data_root, phase)
+        # self.data, self.data_fix_pts, self.label = self.load_data(data_root, phase)
         
 
-    def load_data(self, data_root, phase):
-        data, data_fix_pts, labels = [], [], []
+    # def load_data(self, data_root, phase):
+    #     data, data_fix_pts, labels = [], [], []
 
-        assert os.path.exists(data_root), f"{data_root} does not exist"
-        files = glob.glob(os.path.join(data_root, phase, "*.h5"))
-        assert len(files) > 0, "No files found"
-        for h5_name in files:
-            with h5py.File(h5_name) as f:
-                data.append(f[f"points_{self.resolution}"][:].astype("float32"))
-                data_fix_pts.append(f[f"points_{self.num_points}_{self.resolution}"][:].astype("float32"))
-                labels.append(f["class"][:].astype("int64"))
+    #     assert os.path.exists(data_root), f"{data_root} does not exist"
+    #     files = glob.glob(os.path.join(data_root, phase, "*.h5"))
+    #     assert len(files) > 0, "No files found"
+    #     for h5_name in files:
+    #         with h5py.File(h5_name) as f:
+    #             data.append(f[f"points_{self.resolution}"][:].astype("float32"))
+    #             data_fix_pts.append(f[f"points_{self.num_points}_{self.resolution}"][:].astype("float32"))
+    #             labels.append(f["class"][:].astype("int64"))
 
-        return data, data_fix_pts, labels
+    #     return data, data_fix_pts, labels
 
     def __getitem__(self, i: int) -> dict:
         
-        dense_xyz = self.data[i]
+        h5_name = self.files[i]
+        with h5py.File(h5_name) as f:
+            dense_xyz = f[f"points_{self.resolution}"][:].astype("float32")
+            sparse_xyz = f[f"points_{self.num_points}_{self.resolution}"][:].astype("float32")
+            label = f["class"][:].astype("int64")
+        
+        # dense_xyz = self.data[i]
 
-        sparse_xyz = self.data_fix_pts[i]
+        # sparse_xyz = self.data_fix_pts[i]
         if self.phase == "train":
             np.random.shuffle(sparse_xyz)
             np.random.shuffle(dense_xyz)
@@ -184,7 +191,7 @@ class ModelNetH5_voxelize_all(Dataset):
             dense_xyz = self.transform(dense_xyz)
             sparse_xyz = self.transform(sparse_xyz)
 
-        label = self.label[i]
+        # label = self.label[i]
         ## process for dense PCs
         dense_xyz_torch = torch.from_numpy(dense_xyz)
         dense_features_torch = torch.from_numpy(np.expand_dims(np.ones(dense_xyz.shape[0]), 1))
@@ -213,7 +220,7 @@ class ModelNetH5_voxelize_all(Dataset):
         }
 
     def __len__(self):
-        return len(self.data)
+        return len(self.files)
 
     def __repr__(self):
         return f"ModelNetH5_voxelize_all(phase={self.phase}, length={len(self)}, transform={self.transform})"

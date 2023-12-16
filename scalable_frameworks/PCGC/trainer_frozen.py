@@ -39,6 +39,7 @@ class Trainer():
         self.load_state_dict()
         self.epoch = 0
         self.record_set = {'bce':[], 'bces':[], 'bpp':[], 'bits': [],'sum_loss':[], 'metrics':[]}
+        self.accuracy_set = {'number_correct': [], 'total_number':[]}
 
     def getlogger(self, logdir):
         logger = logging.getLogger(__name__)
@@ -98,11 +99,14 @@ class Trainer():
                 else:
                     self.writer.add_scalar(f'{main_tag}/{k}', np.round(v, 4), self.epoch)
             
+        accuracy_cls = sum(self.accuracy_set['number_correct']) / sum(self.accuracy_set['total_number'])
+        self.logger.info('ACC_CLS'+': '+str(np.round(accuracy_cls, 4).tolist()))
+        self.writer.add_scalar(f'{main_tag}/acc_cls', np.round(accuracy_cls, 4), self.epoch)
             
         # return zero
         for k in self.record_set.keys(): 
             self.record_set[k] = []  
-
+        self.accuracy_set = {'number_correct': [], 'total_number':[]}
         return 
     
     @torch.no_grad()
@@ -127,6 +131,8 @@ class Trainer():
                 quantization_size=1,
                 )
             
+            labels = batch["labels"]
+            
             # # Forward.
             out_set = self.model(x, x_fix_pts, training=False)
             # loss    
@@ -146,7 +152,18 @@ class Trainer():
             labels_list.append(batch["labels"].cpu().numpy())
             preds_list.append(pred.cpu().numpy())
 
-            sum_loss = self.config.alpha * bce + self.config.beta * bpp
+            ce_classification = get_CE_loss(out_set['logits'], batch["labels"].to(device)) 
+            sum_loss = ce_classification
+            # sum_loss = self.config.alpha * bce + self.config.beta * bpp
+
+            # statistics
+            logits = out_set['logits']
+            preds_class = torch.argmax(logits, 1)
+            labels_class = labels.to(device)
+
+            running_corrects_class = torch.sum(preds_class == labels_class)
+
+            
             metrics_ = []
             for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
                 metrics_.append(get_metrics(out_cls, ground_truth))
@@ -158,6 +175,9 @@ class Trainer():
 
             self.record_set['sum_loss'].append(bce.item() + bpp.item())
             self.record_set['metrics'].append(metrics_)
+
+            self.accuracy_set['number_correct'].append(running_corrects_class.item())
+            self.accuracy_set['total_number'].append(labels.size(0))
 
             torch.cuda.empty_cache()# empty cache.
 
@@ -181,7 +201,7 @@ class Trainer():
         params_to_frezee = ['encoder', 
                            'decoder',
                            'entropy_bottleneck',
-                           'classifier'
+                        #    'classifier'
                            ]
         for name, param in self.model.named_parameters():
             # Set True only for params in the list 'params_to_train'
@@ -192,19 +212,24 @@ class Trainer():
                 param.requires_grad = True
 
         start_time = time.time()
-        for batch_step, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
+        for batch_step, batch in enumerate(tqdm(dataloader)):
             self.optimizer.zero_grad()
             # data
-            x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+            
+            # data
+            x = create_input_batch_dense(
+                    batch,
+                    device=device,
+                    quantization_size=1,
+                )
+                
+            x_fix_pts = create_input_batch(
+                batch,
+                device=device,
+                quantization_size=1,
+                )
 
-            ## true input for classifier
-            x_fix_pts = ME.SparseTensor(
-                features=feats_fix_pts,
-                coordinates=coords_fix_pts,
-                device=device
-            )
-
-            labels = torch.from_numpy(np.array(labels))
+            labels = batch["labels"]
             # if x.shape[0] > 6e5: continue
             # forward
             out_set = self.model(x, x_fix_pts, training=True)
@@ -225,11 +250,18 @@ class Trainer():
 
             # sum_loss = self.config.alpha * bce + self.config.beta * bpp
             # backward & optimize
-            sum_loss.requires_grad = True
+            # sum_loss.requires_grad = True
             sum_loss.backward()
             self.optimizer.step()
             # metric & record
             with torch.no_grad():
+                # statistics
+                logits = out_set['logits']
+                preds_class = torch.argmax(logits, 1)
+                labels_class = labels.to(device)
+
+                running_corrects_class = torch.sum(preds_class == labels_class)
+
                 metrics = []
                 for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
                     metrics.append(get_metrics(out_cls, ground_truth))
@@ -239,6 +271,9 @@ class Trainer():
                 self.record_set['bits'].append(bits_avg.item())
                 self.record_set['sum_loss'].append(bce.item() + bpp.item())
                 self.record_set['metrics'].append(metrics)
+
+                self.accuracy_set['number_correct'].append(running_corrects_class.item())
+                self.accuracy_set['total_number'].append(labels.size(0))
 
             torch.cuda.empty_cache() # empty cache.
 

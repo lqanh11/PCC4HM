@@ -23,10 +23,10 @@ def parse_args():
     parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--epoch", type=int, default=10)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231210_modelnet10_reconstruction_frozen_train_cls_000', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231215_modelnet10_reconstruction_frozen_train_cls_resolution1024_000', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -74,22 +74,22 @@ def get_file_dirs(root_path):
             'Test':test_file_dirs[:]}
 
 
-def create_input_batch_dense(batch, device="cuda", quantization_size=1):
+# def create_input_batch_dense(batch, device="cuda", quantization_size=1):
     
-    batch["dense_coordinates"][:, 1:] = batch["dense_coordinates"][:, 1:] / quantization_size
-    return ME.SparseTensor(
-        coordinates=batch["dense_coordinates"],
-        features=batch["dense_features"],
-        device=device,
-    )
-def create_input_batch(batch, device="cuda", quantization_size=1):
+#     batch["dense_coordinates"][:, 1:] = batch["dense_coordinates"][:, 1:] / quantization_size
+#     return ME.SparseTensor(
+#         coordinates=batch["dense_coordinates"],
+#         features=batch["dense_features"],
+#         device=device,
+#     )
+# def create_input_batch(batch, device="cuda", quantization_size=1):
     
-    batch["sparse_coordinates"][:, 1:] = batch["sparse_coordinates"][:, 1:] / quantization_size
-    return ME.TensorField(
-        coordinates=batch["sparse_coordinates"],
-        features=batch["sparse_features"],
-        device=device,
-    )
+#     batch["sparse_coordinates"][:, 1:] = batch["sparse_coordinates"][:, 1:] / quantization_size
+#     return ME.TensorField(
+#         coordinates=batch["sparse_coordinates"],
+#         features=batch["sparse_features"],
+#         device=device,
+#     )
 
 # def test(model_classification, test_dataloader, device):
 #         is_minknet = isinstance(model_classification, ME.MinkowskiNetwork)
@@ -141,10 +141,10 @@ if __name__ == '__main__':
     model_compression.load_state_dict(ckpt_compression['model'])
     model_compression_dict = model_compression.state_dict()
 
-    model_classification = MinkowskiPointNet(in_channel=3, out_channel=10, embedding_channel=1024)
-    ckpt_cls = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/classification_modelnet10_voxelize/1024/minkpointnet_voxelized_128/modelnet_minkpointnet.pth")
-    model_classification.load_state_dict(ckpt_cls['state_dict'])
-    model_classification_dict = model_classification.state_dict()
+    # model_classification = MinkowskiPointNet(in_channel=3, out_channel=10, embedding_channel=1024)
+    # ckpt_cls = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/Mink_classification/classification_modelnet10_voxelize/1024/minkpointnet_voxelized_128/modelnet_minkpointnet.pth")
+    # model_classification.load_state_dict(ckpt_cls['state_dict'])
+    # model_classification_dict = model_classification.state_dict()
 
     processed_dict = {}
 
@@ -159,9 +159,11 @@ if __name__ == '__main__':
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        if("classifier" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[1:])
-            processed_dict[k] = model_classification_dict[pretrained_key] 
+        # if("classifier" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[1:])
+        #     processed_dict[k] = model_classification_dict[pretrained_key] 
+        for k in processed_dict.keys(): 
+            model_dict[k] = processed_dict[k]
     # If load processed dict the model did not have the same performance
     # with pretrained model. I assume that the weight state dict dose not
     # as the same with the original. Therefore, I create a for loop to 
@@ -181,7 +183,7 @@ if __name__ == '__main__':
     # if models_differ == 0:
     #     print('Models match perfectly! :)')
 
-    model.load_state_dict(processed_dict)
+    model.load_state_dict(model_dict)
     
     # trainer    
     trainer = Trainer(config=training_config, model=model)
@@ -191,7 +193,7 @@ if __name__ == '__main__':
     
     train_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='train', 
-                                            resolution=128, 
+                                            resolution=64, 
                                             num_points=1024)
     train_dataloader = make_data_loader_minkowski(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
 
@@ -200,7 +202,7 @@ if __name__ == '__main__':
     
     test_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='test', 
-                                            resolution=128, 
+                                            resolution=64, 
                                             num_points=1024)
     test_dataloader = make_data_loader_minkowski(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
 
@@ -212,5 +214,5 @@ if __name__ == '__main__':
     # training
     for epoch in range(0, args.epoch):
         if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
-        # trainer.train(train_dataloader)
+        trainer.train(train_dataloader)
         trainer.test(test_dataloader, 'Test')

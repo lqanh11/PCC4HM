@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import MinkowskiEngine as ME
 from data_loader_h5 import ModelNetH5_voxelize_all, make_data_loader_minkowski
-from pcc_model_scalable import PCCModel, PCCModel_Classification
+from pcc_model_scalable import PCCModel, PCCModel_Classification, PCCModel_Classification_Split
 from classification_model import MinkowskiPointNet
 from trainer_frozen import Trainer
 import random
@@ -24,9 +24,9 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=8e-4)
 
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--epoch", type=int, default=10)
+    parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231215_modelnet10_reconstruction_frozen_train_cls_resolution1024_000', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231216_modelnet10_reconstruction_frozen_train_cls_resolution128_after_Q_split_1_000', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -132,7 +132,7 @@ if __name__ == '__main__':
                             check_time=args.check_time)    
     
     # Init model
-    model = PCCModel_Classification()
+    model = PCCModel_Classification_Split()
     
     ## load pre-trained model
     model_dict = model.state_dict()
@@ -156,9 +156,9 @@ if __name__ == '__main__':
         if("decoder" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        if("entropy_bottleneck" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
+        # if("entropy_bottleneck" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[:])
+        #     processed_dict[k] = model_compression_dict[pretrained_key]
         # if("classifier" in decomposed_key):
         #     pretrained_key = ".".join(decomposed_key[1:])
         #     processed_dict[k] = model_classification_dict[pretrained_key] 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     
     train_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='train', 
-                                            resolution=64, 
+                                            resolution=128, 
                                             num_points=1024)
     train_dataloader = make_data_loader_minkowski(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     
     test_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='test', 
-                                            resolution=64, 
+                                            resolution=128, 
                                             num_points=1024)
     test_dataloader = make_data_loader_minkowski(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
 

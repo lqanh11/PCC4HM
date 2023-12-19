@@ -117,11 +117,11 @@ class PCDataset_LoadAll                                                         
 
             # normalize coordinate for feature
             
-            xyz = coords_fix_pts - coords_fix_pts.mean(axis=0)
-            xyz_norm = np.sqrt((xyz**2).sum(axis=1))
-            feats_fix_pts = xyz / xyz_norm.max()
+            # xyz = coords_fix_pts - coords_fix_pts.mean(axis=0)
+            # xyz_norm = np.sqrt((xyz**2).sum(axis=1))
+            # feats_fix_pts = xyz / xyz_norm.max()
 
-            # feats_fix_pts = np.expand_dims(np.ones(coords_fix_pts.shape[0]), 1).astype("float32")
+            feats_fix_pts = np.expand_dims(np.ones(coords_fix_pts.shape[0]), 1).astype("float32")
 
             # object labels
             labels = data["class"][:].astype('int64')

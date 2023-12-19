@@ -387,7 +387,7 @@ class Adapter(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=1, 
+            block_layers=0, 
             channels=channels[1])
         
         self.relu = ME.MinkowskiReLU(inplace=True)
@@ -417,7 +417,7 @@ class TransposeAdapter(torch.nn.Module):
             dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
-            block_layers=1, 
+            block_layers=0, 
             channels=channels[1])
         self.conv0_cls = ME.MinkowskiConvolution(
             in_channels=channels[1],

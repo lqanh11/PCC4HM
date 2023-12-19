@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
 
-    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=1600., help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231215_modelnet10_dense_FIXrec_FIXbase_TRAINres', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231219_modelnet10_dense_FIXrec_TRAINbase_LEAVEres', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -144,18 +144,18 @@ if __name__ == '__main__':
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        if("entropy_bottleneck_b" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
-        if("adapter" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
-        if("latentspace_transform" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
-        if("classifier" in decomposed_key):
-            pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
+        # if("entropy_bottleneck_b" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[:])
+        #     processed_dict[k] = model_compression_dict[pretrained_key]
+        # if("adapter" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[:])
+        #     processed_dict[k] = model_compression_dict[pretrained_key]
+        # if("latentspace_transform" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[:])
+        #     processed_dict[k] = model_compression_dict[pretrained_key]
+        # if("classifier" in decomposed_key):
+        #     pretrained_key = ".".join(decomposed_key[:])
+        #     processed_dict[k] = model_compression_dict[pretrained_key]
 
         for k in processed_dict.keys(): 
             model_dict[k] = processed_dict[k]

@@ -157,8 +157,8 @@ class Trainer_Load_All():
 
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
-            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+            # sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
             # sum_loss = ce_classification
 
             # statistics
@@ -220,19 +220,19 @@ class Trainer_Load_All():
         #                    'classifier'
         #                    ]
         ## base
-        # params_to_train = [
-        #     'entropy_bottleneck_b', 
-        #     'adapter',
-        #     'latentspace_transform',
-        #     'classifier'
-        #                    ]
-        ## enhancemet
         params_to_train = [
-            'entropy_bottleneck_e', 
-            'transpose_adapter',
-            'analysis_residual',
-            'systhesis_residual',
+            'entropy_bottleneck_b', 
+            'adapter',
+            # 'latentspace_transform',
+            'classifier'
                            ]
+        ## enhancemet
+        # params_to_train = [
+        #     'entropy_bottleneck_e', 
+        #     'transpose_adapter',
+        #     'analysis_residual',
+        #     'systhesis_residual',
+        #                    ]
         
         for name, param in self.model.named_parameters():
             # Set True only for params in the list 'params_to_train'
@@ -292,9 +292,9 @@ class Trainer_Load_All():
 
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
             ## loss for base branch
-            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_e_avg
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_e_avg
             # sum_loss = ce_classification
-            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+            # sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
 
             # # backward & optimize
             # sum_loss.requires_grad = True

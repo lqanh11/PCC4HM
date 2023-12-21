@@ -38,7 +38,7 @@ class Trainer():
         self.logger.info(model)
         self.load_state_dict()
         self.epoch = 0
-        self.record_set = {'bce':[], 'bces':[], 'bpp':[], 'bits': [],'sum_loss':[], 'metrics':[]}
+        self.record_set = {'bce':[], 'bces':[], 'bpp':[], 'bits': [], 'bits_b': [], 'bits_e': [],'sum_loss':[], 'metrics':[]}
         self.accuracy_set = {'number_correct': [], 'total_number':[]}
 
     def getlogger(self, logdir):
@@ -142,9 +142,16 @@ class Trainer():
                 bce += curr_bce 
                 bce_list.append(curr_bce.item())
             bits = get_bits(out_set['likelihood'])
-
-            bpp = bits / float(x.__len__())
             bits_avg = bits / len(out_set['nums_list'][2])
+
+            bits_b = get_bits(out_set['likelihood_b'])
+            bits_b_avg = bits_b / len(out_set['nums_list'][2])
+
+            bits_e = get_bits(out_set['likelihood_e'])
+            bits_e_avg = bits_e / len(out_set['nums_list'][2])
+
+            bits_all = bits_b + bits_e
+            bpp = bits_all / float(x.__len__())
 
             logit = out_set['logits']
             pred = torch.argmax(logit, 1)
@@ -153,7 +160,8 @@ class Trainer():
             preds_list.append(pred.cpu().numpy())
 
             ce_classification = get_CE_loss(out_set['logits'], batch["labels"].to(device)) 
-            sum_loss = ce_classification
+            # sum_loss = ce_classification
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bpp
             # sum_loss = self.config.alpha * bce + self.config.beta * bpp
 
             # statistics
@@ -172,6 +180,8 @@ class Trainer():
             self.record_set['bces'].append(bce_list)
             self.record_set['bpp'].append(bpp.item())
             self.record_set['bits'].append(bits_avg.item())
+            self.record_set['bits_b'].append(bits_b_avg.item())
+            self.record_set['bits_e'].append(bits_e_avg.item())
 
             self.record_set['sum_loss'].append(bce.item() + bpp.item())
             self.record_set['metrics'].append(metrics_)
@@ -241,13 +251,20 @@ class Trainer():
                 bce += curr_bce 
                 bce_list.append(curr_bce.item())
             bits = get_bits(out_set['likelihood'])
-
-            bpp = bits / float(x.__len__())
             bits_avg = bits / len(out_set['nums_list'][2])
 
-            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
-            sum_loss = ce_classification
+            bits_b = get_bits(out_set['likelihood_b'])
+            bits_b_avg = bits_b / len(out_set['nums_list'][2])
 
+            bits_e = get_bits(out_set['likelihood_e'])
+            bits_e_avg = bits_e / len(out_set['nums_list'][2])
+
+            bits_all = bits_b + bits_e
+            bpp = bits_all / float(x.__len__())
+
+            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
+            # sum_loss = ce_classification
+            sum_loss = self.config.alpha * ce_classification + self.config.beta * bpp
             # sum_loss = self.config.alpha * bce + self.config.beta * bpp
             # backward & optimize
             # sum_loss.requires_grad = True
@@ -269,6 +286,8 @@ class Trainer():
                 self.record_set['bces'].append(bce_list)
                 self.record_set['bpp'].append(bpp.item())
                 self.record_set['bits'].append(bits_avg.item())
+                self.record_set['bits_b'].append(bits_b_avg.item())
+                self.record_set['bits_e'].append(bits_e_avg.item())
                 self.record_set['sum_loss'].append(bce.item() + bpp.item())
                 self.record_set['metrics'].append(metrics)
 

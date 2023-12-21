@@ -15,25 +15,26 @@ def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--data_split_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
+    parser.add_argument("--resolution", type=int, default=128, help='resolution for resampled PC')
     
-
     parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
+
+    parser.add_argument("--split_channel", type=int, default=4, help="number of channel for base layer.")
 
     parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--epoch", type=int, default=100)
+    parser.add_argument("--epoch", type=int, default=15)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231216_modelnet10_reconstruction_frozen_train_cls_resolution128_after_Q_split_1_000', help="prefix of checkpoints/logger, etc.")
- 
+    
     args = parser.parse_args()
 
     return args
 
 class TrainingConfig():
-    def __init__(self, logdir, ckptdir, init_ckpt, alpha, beta, lr, check_time):
+    def __init__(self, logdir, ckptdir, init_ckpt, resolution, alpha, beta, split, lr, check_time):
         
         while os.path.exists(logdir):
             logdir = '{}_{:03d}'.format(logdir[:-4], int(logdir[-3:])+1)
@@ -49,8 +50,10 @@ class TrainingConfig():
         self.init_ckpt = init_ckpt
         self.alpha = alpha
         self.beta = beta
+        self.split=split
         self.lr = lr
-        self.check_time=check_time
+        self.check_time = check_time
+        self.resolution = resolution
 
 
 def get_file_dirs(root_path):
@@ -64,75 +67,30 @@ def get_file_dirs(root_path):
     for filename in os.listdir(os.path.join(root_path, 'test')):
         test_file_dirs.append(os.path.abspath(os.path.join(root_path, 'test', filename)))
 
-    random.shuffle(train_file_dirs)
-    random.shuffle(test_file_dirs)
-
     print('Train: ', len(train_file_dirs), 
         'Test: ', len(test_file_dirs))
     
     return {'Train':train_file_dirs[:], 
             'Test':test_file_dirs[:]}
 
-
-# def create_input_batch_dense(batch, device="cuda", quantization_size=1):
-    
-#     batch["dense_coordinates"][:, 1:] = batch["dense_coordinates"][:, 1:] / quantization_size
-#     return ME.SparseTensor(
-#         coordinates=batch["dense_coordinates"],
-#         features=batch["dense_features"],
-#         device=device,
-#     )
-# def create_input_batch(batch, device="cuda", quantization_size=1):
-    
-#     batch["sparse_coordinates"][:, 1:] = batch["sparse_coordinates"][:, 1:] / quantization_size
-#     return ME.TensorField(
-#         coordinates=batch["sparse_coordinates"],
-#         features=batch["sparse_features"],
-#         device=device,
-#     )
-
-# def test(model_classification, test_dataloader, device):
-#         is_minknet = isinstance(model_classification, ME.MinkowskiNetwork)
-#         data_loader = test_dataloader
-#         model_classification.to(device)
-#         model_classification.eval()
-#         labels, preds = [], []
-#         with torch.no_grad():
-#             for batch in data_loader:
-#                 dense_input = create_input_batch_dense(
-#                     batch,
-#                     device=device,
-#                     quantization_size=1,
-#                 )
-                
-#                 input = create_input_batch(
-#                     batch,
-#                     device=device,
-#                     quantization_size=1,
-#                 )
-
-#                 out = model_classification(dense_input, input, False)
-#                 pred = torch.argmax(out['logits'], 1)
-#                 labels.append(batch["labels"].cpu().numpy())
-#                 preds.append(pred.cpu().numpy())
-#                 torch.cuda.empty_cache()
-#         return metrics.accuracy_score(np.concatenate(labels), np.concatenate(preds))
-
-
 if __name__ == '__main__':
     # log
     args = parse_args()
+ 
+    prefix = f'20231219_modelnet10_FIXreconstruction_TRANcls_resolution{args.resolution}_split_{args.split_channel}_000'
     training_config = TrainingConfig(
-                            logdir=os.path.join('/media/avitech/Data/quocanhle/PointCloud/logs/Scalable_Cls/', args.prefix), 
+                            logdir=os.path.join('/media/avitech/Data/quocanhle/PointCloud/logs/Scalable_Cls/', prefix), 
                             ckptdir='', 
                             init_ckpt=args.init_ckpt, 
+                            resolution=args.resolution,
                             alpha=args.alpha, 
                             beta=args.beta, 
+                            split=args.split_channel,
                             lr=args.lr, 
                             check_time=args.check_time)    
     
     # Init model
-    model = PCCModel_Classification_Split()
+    model = PCCModel_Classification_Split(split_channel=args.split_channel)
     
     ## load pre-trained model
     model_dict = model.state_dict()
@@ -156,9 +114,9 @@ if __name__ == '__main__':
         if("decoder" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
             processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("entropy_bottleneck" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[:])
-        #     processed_dict[k] = model_compression_dict[pretrained_key]
+        if("entropy_bottleneck" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict[pretrained_key]
         # if("classifier" in decomposed_key):
         #     pretrained_key = ".".join(decomposed_key[1:])
         #     processed_dict[k] = model_classification_dict[pretrained_key] 
@@ -193,7 +151,7 @@ if __name__ == '__main__':
     
     train_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='train', 
-                                            resolution=128, 
+                                            resolution=args.resolution, 
                                             num_points=1024)
     train_dataloader = make_data_loader_minkowski(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
 
@@ -202,7 +160,7 @@ if __name__ == '__main__':
     
     test_dataset = ModelNetH5_voxelize_all(data_root=args.data_split_path, 
                                             phase='test', 
-                                            resolution=128, 
+                                            resolution=args.resolution, 
                                             num_points=1024)
     test_dataloader = make_data_loader_minkowski(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
 

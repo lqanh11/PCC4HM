@@ -28,7 +28,7 @@ def parse_args():
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=48, help='batch size in training')
+    parser.add_argument('--batch_size', type=int, default=12, help='batch size in training')
     parser.add_argument('--model', default='pointnet_cls', help='model name [default: pointnet_cls]')
     parser.add_argument('--num_category', default=10, type=int, choices=[10, 40],  help='training on ModelNet10/40')
     parser.add_argument('--epoch', default=100, type=int, help='number of epoch in training')
@@ -117,14 +117,14 @@ def main(args):
 
     '''DATA LOADING'''
     log_string('Load dataset ...')
-    data_path = '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/'
+    data_path = '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_modelnet10_ply_hdf5_single_file/precise_coordinates/'
 
-    full_train_dataset = ModelNetDataLoader_h5_all(root=data_path, args=args, split='train', process_data=args.process_data)
+    full_train_dataset = ModelNetDataLoader_h5(root=data_path, args=args, split='train', process_data=args.process_data)
     train_size = int(0.8 * len(full_train_dataset))
     val_size = len(full_train_dataset) - train_size
     
     train_dataset, val_dataset = torch.utils.data.random_split(full_train_dataset, [train_size, val_size])
-    test_dataset = ModelNetDataLoader_h5_all(root=data_path, args=args, split='test', process_data=args.process_data)
+    test_dataset = ModelNetDataLoader_h5(root=data_path, args=args, split='test', process_data=args.process_data)
     
     trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=10, drop_last=True)
     valDataLoader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)

@@ -18,17 +18,17 @@ def parse_args():
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
 
-    parser.add_argument("--alpha", type=float, default=1600., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--init_ckpt", default='')
-    parser.add_argument("--lr", type=float, default=8e-4)
+    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/20231220_modelnet10_dense_FIXrec_TRAINbase_FIXres-bce_adapterCONV_4channels_alpha_16000.0_000/ckpts/epoch_20.pth')
+    parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--epoch", type=int, default=100)
+    parser.add_argument("--epoch", type=int, default=30)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
-    parser.add_argument("--prefix", type=str, default='20231219_modelnet10_dense_FIXrec_TRAINbase_LEAVEres', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231220_modelnet10_dense_FIXrec_FIXbase_TRAINres-bce_adapterCONV_4channels', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -172,13 +172,13 @@ if __name__ == '__main__':
     # dataset
     filedirs = get_file_dirs(args.root_path)
     
-    train_dataset = PCDataset_LoadAll(filedirs['Train'], resolution=128, num_pts=2048)
+    train_dataset = PCDataset_LoadAll(filedirs['Train'], resolution=128, num_pts=1024)
     train_dataloader = make_data_loader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, repeat=False, num_workers=4)
 
     # val_dataset = PCDataset(filedirs['Val'])
     # val_dataloader = make_data_loader(dataset=val_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
     
-    test_dataset = PCDataset_LoadAll(filedirs['Test'], resolution=128, num_pts=2048)
+    test_dataset = PCDataset_LoadAll(filedirs['Test'], resolution=128, num_pts=1024)
     test_dataloader = make_data_loader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
 
     # training

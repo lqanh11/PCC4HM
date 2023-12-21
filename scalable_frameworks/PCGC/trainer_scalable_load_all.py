@@ -22,10 +22,10 @@ class Trainer_Load_All():
         self.load_state_dict()
         self.epoch = 0
         self.record_set = {'bce':[],
-                           'bce_LST':[], 
+                        #    'bce_LST':[], 
                            'mse':[],
                            'bces':[],
-                           'bces_LST':[],
+                        #    'bces_LST':[],
                            'mses':[],
                            'ce_cls':[], 
                            'bpp':[], 
@@ -108,96 +108,97 @@ class Trainer_Load_All():
     
     @torch.no_grad()
     def test(self, dataloader, main_tag='Test'):
-        self.logger.info('Testing Files length:' + str(len(dataloader)))
+        with torch.no_grad():
+            self.logger.info('Testing Files length:' + str(len(dataloader)))
 
-        labels_list, preds_list = [], []
-        self.model.eval()
-        for idx, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
-            # data
-            x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
-            # labels = torch.from_numpy(labels)
+            labels_list, preds_list = [], []
+            self.model.eval()
+            for idx, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
+                # data
+                x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+                x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
+                # labels = torch.from_numpy(labels)
 
-            # # Forward.
-            out_set = self.model(x, x_fix_pts, training=False)
-            # loss    
-            bce, bce_list = 0, []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
-                bce += curr_bce 
-                bce_list.append(curr_bce.item())
+                # # Forward.
+                out_set = self.model(x, x_fix_pts, training=False)
+                # loss    
+                bce, bce_list = 0, []
+                for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
+                    curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
+                    bce += curr_bce 
+                    bce_list.append(curr_bce.item())
 
-            bce_LST, bce_list_LST = 0, []
-            for out_cls, ground_truth in zip(out_set['pred_LST'], out_set['groundtruth_LST']):
-                curr_bce = get_bce(out_cls, ground_truth)/float(out_cls.__len__())
-                # curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
-                bce_LST += curr_bce 
-                bce_list_LST.append(curr_bce.item())
-            
-            mse, mse_list = 0, []
-            for out_cls, ground_truth in zip(out_set['prior_scalable'], out_set['prior_original']):
-                curr_mse = get_mse(out_cls, ground_truth)
-                mse += curr_mse
-                mse_list.append(curr_mse.item())
+                # bce_LST, bce_list_LST = 0, []
+                # for out_cls, ground_truth in zip(out_set['pred_LST'], out_set['groundtruth_LST']):
+                #     curr_bce = get_bce(out_cls, ground_truth)/float(out_cls.__len__())
+                #     # curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
+                #     bce_LST += curr_bce 
+                #     bce_list_LST.append(curr_bce.item())
+                
+                mse, mse_list = 0, []
+                for out_cls, ground_truth in zip(out_set['prior_scalable'], out_set['prior_original']):
+                    curr_mse = get_mse(out_cls, ground_truth)
+                    mse += curr_mse
+                    mse_list.append(curr_mse.item())
 
-            bits = get_bits(out_set['likelihood'])
+                bits = get_bits(out_set['likelihood'])
 
-            bpp = bits / float(x.__len__())
-            bits_avg = bits / len(out_set['nums_list'][2])
+                bpp = bits / float(x.__len__())
+                bits_avg = bits / len(out_set['nums_list'][2])
 
-            bits_b = get_bits(out_set['likelihood_b'])
-            bits_b_avg = bits_b / len(out_set['nums_list'][2])
-            bits_e = get_bits(out_set['likelihood_e'])
-            bits_e_avg = bits_e / len(out_set['nums_list'][2])
+                bits_b = get_bits(out_set['likelihood_b'])
+                bits_b_avg = bits_b / len(out_set['nums_list'][2])
+                bits_e = get_bits(out_set['likelihood_e'])
+                bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
-            bpp_e = bits_e / float(x.__len__())
+                bpp_e = bits_e / float(x.__len__())
 
-            ## CE classification
-            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
+                ## CE classification
+                ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
+                # sum_loss = self.config.alpha * bce + self.config.beta * bpp_e
+                # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+                ## loss for base branch
+                # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+                sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+                # sum_loss = ce_classification
 
-            # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
-            ## loss for base branch
-            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
-            # sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
-            # sum_loss = ce_classification
+                # statistics
+                logits = out_set['logits']
+                preds_class = torch.argmax(logits, 1)
+                labels_class = labels.to(device)
 
-            # statistics
-            logits = out_set['logits']
-            preds_class = torch.argmax(logits, 1)
-            labels_class = labels.to(device)
+                labels_list.append(labels.cpu().numpy())
+                preds_list.append(preds_class.cpu().numpy())
 
-            labels_list.append(labels.cpu().numpy())
-            preds_list.append(preds_class.cpu().numpy())
+                running_corrects_class = torch.sum(preds_class == labels_class)
 
-            running_corrects_class = torch.sum(preds_class == labels_class)
+                metrics_calculator = []
+                for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
+                    metrics_calculator.append(get_metrics(out_cls, ground_truth))
+                # record
+                self.record_set['bce'].append(bce.item())
+                # self.record_set['bce_LST'].append(bce_LST.item())
+                self.record_set['mse'].append(mse.item())
+                self.record_set['bces'].append(bce_list)
+                # self.record_set['bces_LST'].append(bce_list_LST)
+                self.record_set['mses'].append(mse_list)
+                self.record_set['ce_cls'].append(ce_classification.item())
+                self.record_set['bpp'].append(bpp.item())
+                self.record_set['bpp_e'].append(bpp_e.item())
+                self.record_set['bits'].append(bits_avg.item())
+                self.record_set['bits_b'].append(bits_b_avg.item())
+                self.record_set['bits_e'].append(bits_e_avg.item())
+                self.record_set['sum_loss'].append(sum_loss.item())
+                self.record_set['metrics'].append(metrics_calculator)
 
-            metrics_calculator = []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                metrics_calculator.append(get_metrics(out_cls, ground_truth))
-            # record
-            self.record_set['bce'].append(bce.item())
-            self.record_set['bce_LST'].append(bce_LST.item())
-            self.record_set['mse'].append(mse.item())
-            self.record_set['bces'].append(bce_list)
-            self.record_set['bces_LST'].append(bce_list_LST)
-            self.record_set['mses'].append(mse_list)
-            self.record_set['ce_cls'].append(ce_classification.item())
-            self.record_set['bpp'].append(bpp.item())
-            self.record_set['bpp_e'].append(bpp_e.item())
-            self.record_set['bits'].append(bits_avg.item())
-            self.record_set['bits_b'].append(bits_b_avg.item())
-            self.record_set['bits_e'].append(bits_e_avg.item())
-            self.record_set['sum_loss'].append(sum_loss.item())
-            self.record_set['metrics'].append(metrics_calculator)
+                self.accuracy_set['number_correct'].append(running_corrects_class.item())
+                self.accuracy_set['total_number'].append(labels.size(0))
 
-            self.accuracy_set['number_correct'].append(running_corrects_class.item())
-            self.accuracy_set['total_number'].append(labels.size(0))
+                torch.cuda.empty_cache()# empty cache.
 
-            torch.cuda.empty_cache()# empty cache.
-
-        self.record(main_tag=main_tag, global_step=self.epoch)
-        accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
-        self.logger.info(f"Test accuracy: {accuracy}")
+            self.record(main_tag=main_tag, global_step=self.epoch)
+            accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
+            self.logger.info(f"Test accuracy: {accuracy}")
 
         return
 
@@ -220,12 +221,12 @@ class Trainer_Load_All():
         #                    'classifier'
         #                    ]
         ## base
-        params_to_train = [
-            'entropy_bottleneck_b', 
-            'adapter',
-            # 'latentspace_transform',
-            'classifier'
-                           ]
+        # params_to_train = [
+        #     'entropy_bottleneck_b', 
+        #     'adapter',
+        #     'latentspace_transform',
+        #     'classifier'
+        #                    ]
         ## enhancemet
         # params_to_train = [
         #     'entropy_bottleneck_e', 
@@ -233,15 +234,37 @@ class Trainer_Load_All():
         #     'analysis_residual',
         #     'systhesis_residual',
         #                    ]
-        
-        for name, param in self.model.named_parameters():
-            # Set True only for params in the list 'params_to_train'
-            decomposed_name = name.split(".")
-            if(decomposed_name[0] in params_to_train):
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
-          
+
+
+        # for name, param in self.model.named_parameters():
+        #     # Set True only for params in the list 'params_to_train'
+        #     decomposed_name = name.split(".")
+        #     if(decomposed_name[0] in params_to_train):
+        #         param.requires_grad = True
+        #         print(name, 'requires_grad = True')
+        #     else:
+        #         param.requires_grad = False
+        #         print(name, 'requires_grad = False')
+        for param in self.model.encoder.parameters():
+            param.requires_grad = False 
+        for param in self.model.decoder.parameters():
+            param.requires_grad = False 
+        for param in self.model.entropy_bottleneck.parameters():
+            param.requires_grad = False    
+        for param in self.model.entropy_bottleneck_b.parameters():
+            param.requires_grad = False   
+        for param in self.model.entropy_bottleneck_e.parameters():
+            param.requires_grad = True   
+        for param in self.model.adapter.parameters():
+            param.requires_grad = False  
+        for param in self.model.transpose_adapter.parameters():
+            param.requires_grad = True  
+        for param in self.model.classifier.parameters():
+            param.requires_grad = False
+        for param in self.model.analysis_residual.parameters():
+            param.requires_grad = True   
+        for param in self.model.systhesis_residual.parameters():
+            param.requires_grad = True  
         
         start_time = time.time()
         for batch_step, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
@@ -263,12 +286,12 @@ class Trainer_Load_All():
                 bce += curr_bce 
                 bce_list.append(curr_bce.item())
 
-            bce_LST, bce_list_LST = 0, []
-            for out_cls, ground_truth in zip(out_set['pred_LST'], out_set['groundtruth_LST']):
-                curr_bce = get_bce(out_cls, ground_truth)/float(out_cls.__len__())
-                # curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
-                bce_LST += curr_bce 
-                bce_list_LST.append(curr_bce.item())
+            # bce_LST, bce_list_LST = 0, []
+            # for out_cls, ground_truth in zip(out_set['pred_LST'], out_set['groundtruth_LST']):
+            #     curr_bce = get_bce(out_cls, ground_truth)/float(out_cls.__len__())
+            #     # curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
+            #     bce_LST += curr_bce 
+            #     bce_list_LST.append(curr_bce.item())
                 
             mse, mse_list = 0, []
             for out_cls, ground_truth in zip(out_set['prior_scalable'], out_set['prior_original']):
@@ -290,11 +313,13 @@ class Trainer_Load_All():
             ## CE classification
             ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
+            # sum_loss = self.config.alpha * bce + self.config.beta * bpp_e
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+            
             ## loss for base branch
-            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_e_avg
+            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
             # sum_loss = ce_classification
-            # sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
 
             # # backward & optimize
             # sum_loss.requires_grad = True
@@ -320,10 +345,10 @@ class Trainer_Load_All():
                     metrics_calculator.append(get_metrics(out_cls, ground_truth))
                 
                 self.record_set['bce'].append(bce.item())
-                self.record_set['bce_LST'].append(bce_LST.item())
+                # self.record_set['bce_LST'].append(bce_LST.item())
                 self.record_set['mse'].append(mse.item())
                 self.record_set['bces'].append(bce_list)
-                self.record_set['bces_LST'].append(bce_list_LST)
+                # self.record_set['bces_LST'].append(bce_list_LST)
                 self.record_set['mses'].append(mse_list)
                 self.record_set['ce_cls'].append(ce_classification.item())
                 self.record_set['bpp'].append(bpp.item())

@@ -13,15 +13,15 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
         self.encoder = Encoder(channels=[1,16,32,64,32,8])
         self.decoder = Decoder(channels=[8,64,32,16])
         self.entropy_bottleneck = EntropyBottleneck(8)
-        self.entropy_bottleneck_b = EntropyBottleneck(8)
-        self.entropy_bottleneck_e = EntropyBottleneck(8)
-        self.adapter = Adapter(channels=[8,8])
-        self.transpose_adapter = TransposeAdapter(channels=[8,8])
+        self.entropy_bottleneck_b = EntropyBottleneck(4)
+        self.entropy_bottleneck_e = EntropyBottleneck(4)
+        self.adapter = Adapter(channels=[8,4])
+        self.transpose_adapter = TransposeAdapter(channels=[4,8])
         # self.latentspace_transform = LatentSpaceTransform(channels=[8,8])
-        self.classifier = MinkoPointNet_Conv_2(in_channel=8, out_channel=10, embedding_channel=1024)
+        self.classifier = MinkoPointNet_Conv_2(in_channel=4, out_channel=10, embedding_channel=1024)
         
-        self.analysis_residual = Adapter(channels=[8,8])
-        self.systhesis_residual = TransposeAdapter(channels=[8,8])
+        self.analysis_residual = Adapter(channels=[8,4])
+        self.systhesis_residual = TransposeAdapter(channels=[4,8])
 
     def get_likelihood_o(self, data, quantize_mode):
         data_F, likelihood = self.entropy_bottleneck(data.F,
@@ -383,14 +383,27 @@ class PCCModel_Scalable(torch.nn.Module):
                 }
 
 class PCCModel_Classification_Split(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, split_channel=3):
         super().__init__()
-        self.split_channel = 3
+        self.split_channel = split_channel
+
         self.encoder = Encoder(channels=[1,16,32,64,32,8])
         self.decoder = Decoder(channels=[8,64,32,16])
+        self.entropy_bottleneck = EntropyBottleneck(8)
         self.entropy_bottleneck_b = EntropyBottleneck(channels=self.split_channel)
         self.entropy_bottleneck_e = EntropyBottleneck(channels= 8 - self.split_channel)
         self.classifier = MinkoPointNet_Conv_2(in_channel=self.split_channel, out_channel=10, embedding_channel=1024)
+
+    def get_likelihood_o(self, data, quantize_mode):
+        data_F, likelihood = self.entropy_bottleneck(data.F,
+            quantize_mode=quantize_mode)
+        data_Q = ME.SparseTensor(
+            features=data_F, 
+            coordinate_map_key=data.coordinate_map_key, 
+            coordinate_manager=data.coordinate_manager, 
+            device=data.device)
+        
+        return data_Q, likelihood
 
     def get_likelihood_b(self, data, split, quantize_mode):
         data_F, likelihood = self.entropy_bottleneck_b(data.F[:,:split],
@@ -422,11 +435,16 @@ class PCCModel_Classification_Split(torch.nn.Module):
         nums_list = [[len(C) for C in ground_truth.decomposed_coordinates] \
             for ground_truth in ground_truth_list]
 
+        # Quantizer & Entropy Model - Original
+        y_q, likelihood = self.get_likelihood_o(y, 
+            quantize_mode="noise" if training else "symbols")
+
         # Quantizer & Entropy Model
         split = self.split_channel
-        y_b_q, likelihood = self.get_likelihood_b(y, split,
+        y_b_q, likelihood_b = self.get_likelihood_b(y, split,
             quantize_mode="noise" if training else "symbols")
-        y_e_q, likelihood = self.get_likelihood_e(y, split,
+        
+        y_e_q, likelihood_e = self.get_likelihood_e(y, split,
             quantize_mode="noise" if training else "symbols")
         
         # classification
@@ -446,6 +464,8 @@ class PCCModel_Classification_Split(torch.nn.Module):
                 'out_cls_list':out_cls_list,
                 'prior':y_hat, 
                 'likelihood':likelihood, 
+                'likelihood_b':likelihood_b,
+                'likelihood_e':likelihood_e,   
                 'ground_truth_list':ground_truth_list,
                 'nums_list': nums_list
                 }

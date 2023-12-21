@@ -34,10 +34,7 @@ def process(path, args):
     makedirs(target_folder, exist_ok=True)
 
     logger.debug(f"Writing PC {ori_path} to {target_path}")
-    try:
-        pc_mesh = PyntCloud.from_file(ori_path)
-    except:
-        return
+    pc_mesh = PyntCloud.from_file(ori_path)
     mesh = pc_mesh.mesh
     pc_mesh.points = pc_mesh.points.astype('float64', copy=False)
     pc_mesh.mesh = mesh
@@ -62,14 +59,14 @@ def process(path, args):
 ################################################################################
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog='mesh_to_pc.py',
+        prog='ds_mesh_to_pc.py',
         description='Converts a folder containing meshes to point clouds',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument('--source', type=str, help='Source directory', default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/mesh_original_format_off/')
-    parser.add_argument('--dest', type=str, help='Destination directory', default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/Training_Data_For_Compression_Frameworks/PCC_GEO_CNNv1/ModelNet10_pc_64/')
-    parser.add_argument('--vg_size', type=int, help='Voxel Grid resolution for x, y, z dimensions', default=64)
+    parser.add_argument('source', help='Source directory')
+    parser.add_argument('dest', help='Destination directory')
+    parser.add_argument('--vg_size', type=int, help='Voxel Grid resolution for x, y, z dimensions', default=512)
     parser.add_argument('--n_samples', type=int, help='Number of samples', default=500000)
     parser.add_argument('--source_extension', help='Mesh files extension', default='.off')
     parser.add_argument('--target_extension', help='Point cloud extension', default='.ply')
@@ -77,12 +74,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     assert os.path.exists(args.source), f'{args.source} does not exist'
-    # assert not os.path.exists(args.dest), f'{args.dest} already exists'
+    assert not os.path.exists(args.dest), f'{args.dest} already exists'
     assert args.vg_size > 0, f'vg_size must be positive'
     assert args.n_samples > 0, f'n_samples must be positive'
 
     paths = glob(join(args.source, '**', f'*{args.source_extension}'), recursive=True)
-    files = [x[len(args.source):] for x in paths]
+    files = [x[len(args.source) + 1:] for x in paths]
     files_len = len(files)
     assert files_len > 0
     logger.info(f'Found {files_len} models in {args.source}')

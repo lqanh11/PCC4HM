@@ -11,22 +11,23 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 from tensorboardX import SummaryWriter
 
 
-class Trainer_Scalable():
+class Trainer_Load_All():
     def __init__(self, config, model):
         self.config = config
         self.logger = self.getlogger(config.logdir)
         self.writer = SummaryWriter(log_dir=config.logdir)
 
         self.model = model.to(device)
-        self.logger.info(model)
+        # self.logger.info(model)
         self.load_state_dict()
         self.epoch = 0
-        self.record_set = {'bce':[], 
+        self.record_set = {'bce':[],
                            'mse':[],
                            'bces':[],
                            'mses':[],
                            'ce_cls':[], 
                            'bpp':[], 
+                           'bpp_e':[], 
                            'bits': [],
                            'bits_b': [],
                            'bits_e': [],
@@ -86,9 +87,9 @@ class Trainer_Scalable():
             ## TensorbroadX visulization
             if k != 'bces':
                 if k == 'metrics':
-                    self.writer.add_scalar(f'{main_tag}/PRECISION', np.round(v[0], 4), self.epoch)
-                    self.writer.add_scalar(f'{main_tag}/RECALL', np.round(v[1], 4), self.epoch)
-                    self.writer.add_scalar(f'{main_tag}/IoU', np.round(v[2], 4), self.epoch)
+                    self.writer.add_scalar(f'{main_tag}/PRECISION', np.round(v[2][0], 4), self.epoch)
+                    self.writer.add_scalar(f'{main_tag}/RECALL', np.round(v[2][1], 4), self.epoch)
+                    self.writer.add_scalar(f'{main_tag}/IoU', np.round(v[2][2], 4), self.epoch)
                 else:
                     self.writer.add_scalar(f'{main_tag}/{k}', np.round(v, 4), self.epoch)
             
@@ -105,85 +106,92 @@ class Trainer_Scalable():
     
     @torch.no_grad()
     def test(self, dataloader, main_tag='Test'):
-        self.logger.info('Testing Files length:' + str(len(dataloader)))
+        with torch.no_grad():
+            self.logger.info('Testing Files length:' + str(len(dataloader)))
 
-        labels_list, preds_list = [], []
+            labels_list, preds_list = [], []
+            self.model.eval()
+            for idx, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
+                # data
+                x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
+                x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
+                # labels = torch.from_numpy(labels)
 
-        for idx, (coords, feats, labels) in enumerate(tqdm(dataloader)):
-            # data
-            x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            labels = torch.from_numpy(np.array(labels))
+                # # Forward.
+                out_set = self.model(x, x_fix_pts, training=False)
+                # loss    
+                bce, bce_list = 0, []
+                for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
+                    curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
+                    bce += curr_bce 
+                    bce_list.append(curr_bce.item())
+                
+                mse, mse_list = 0, []
+                for out_cls, ground_truth in zip(out_set['prior_scalable'], out_set['prior_original']):
+                    curr_mse = get_mse(out_cls, ground_truth)
+                    mse += curr_mse
+                    mse_list.append(curr_mse.item())
 
-            # # Forward.
-            out_set = self.model(x, training=False)
-            # loss    
-            bce, bce_list = 0, []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
-                bce += curr_bce 
-                bce_list.append(curr_bce.item())
-            
-            mse, mse_list = 0, []
-            for out_cls, ground_truth in zip(out_set['prior_scalable'], out_set['prior_original']):
-                curr_mse = get_mse(out_cls, ground_truth)
-                mse += curr_mse
-                mse_list.append(curr_mse.item())
+                bits = get_bits(out_set['likelihood'])
 
-            bits = get_bits(out_set['likelihood'])
+                bpp = bits / float(x.__len__())
+                bits_avg = bits / len(out_set['nums_list'][2])
 
-            bpp = bits / float(x.__len__())
-            bits_avg = bits / len(out_set['nums_list'][2])
+                bits_b = get_bits(out_set['likelihood_b'])
+                bits_b_avg = bits_b / len(out_set['nums_list'][2])
+                bits_e = get_bits(out_set['likelihood_e'])
+                bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
-            bits_b = get_bits(out_set['likelihood_b'])
-            bits_b_avg = bits_b / len(out_set['nums_list'][2])
-            bits_e = get_bits(out_set['likelihood_e'])
-            bits_e_avg = bits_e / len(out_set['nums_list'][2])
+                bpp_e = bits_e / float(x.__len__())
 
-            ## CE classification
-            ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
+                ## CE classification
+                ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
+                # sum_loss = self.config.alpha * bce + self.config.beta * bpp_e
+                # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+                ## loss for base branch
+                # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+                sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
+                # sum_loss = ce_classification
 
-            # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
-            ## loss for base branch
-            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+                # statistics
+                logits = out_set['logits']
+                preds_class = torch.argmax(logits, 1)
+                labels_class = labels.to(device)
 
-            # statistics
-            logits = out_set['logits']
-            preds_class = torch.argmax(logits, 1)
-            labels_class = labels.to(device)
+                labels_list.append(labels.cpu().numpy())
+                preds_list.append(preds_class.cpu().numpy())
 
-            labels_list.append(labels.cpu().numpy())
-            preds_list.append(preds_class.cpu().numpy())
+                running_corrects_class = torch.sum(preds_class == labels_class)
 
-            running_corrects_class = torch.sum(preds_class == labels_class)
+                metrics_calculator = []
+                for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
+                    metrics_calculator.append(get_metrics(out_cls, ground_truth))
+                # record
+                self.record_set['bce'].append(bce.item())
+                self.record_set['mse'].append(mse.item())
+                self.record_set['bces'].append(bce_list)
+                self.record_set['mses'].append(mse_list)
+                self.record_set['ce_cls'].append(ce_classification.item())
+                self.record_set['bpp'].append(bpp.item())
+                self.record_set['bpp_e'].append(bpp_e.item())
+                self.record_set['bits'].append(bits_avg.item())
+                self.record_set['bits_b'].append(bits_b_avg.item())
+                self.record_set['bits_e'].append(bits_e_avg.item())
+                self.record_set['sum_loss'].append(sum_loss.item())
+                self.record_set['metrics'].append(metrics_calculator)
 
-            metrics_calculator = []
-            for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
-                metrics_calculator.append(get_metrics(out_cls, ground_truth))
-            # record
-            self.record_set['bce'].append(bce.item())
-            self.record_set['mse'].append(mse.item())
-            self.record_set['bces'].append(bce_list)
-            self.record_set['mses'].append(mse_list)
-            self.record_set['ce_cls'].append(ce_classification.item())
-            self.record_set['bpp'].append(bpp.item())
-            self.record_set['bits'].append(bits_avg.item())
-            self.record_set['bits_b'].append(bits_b_avg.item())
-            self.record_set['bits_e'].append(bits_e_avg.item())
-            self.record_set['sum_loss'].append(sum_loss.item())
-            self.record_set['metrics'].append(metrics_calculator)
+                self.accuracy_set['number_correct'].append(running_corrects_class.item())
+                self.accuracy_set['total_number'].append(labels.size(0))
 
-            self.accuracy_set['number_correct'].append(running_corrects_class.item())
-            self.accuracy_set['total_number'].append(labels.size(0))
+                torch.cuda.empty_cache()# empty cache.
 
-            torch.cuda.empty_cache()# empty cache.
-
-        self.record(main_tag=main_tag, global_step=self.epoch)
-        accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
-        self.logger.info(f"Test accuracy: {accuracy}")
+            self.record(main_tag=main_tag, global_step=self.epoch)
+            accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
+            self.logger.info(f"Test accuracy: {accuracy}")
 
         return
 
-    def train(self, dataloader):
+    def train(self, dataloader, params_to_train):
         self.logger.info('='*40+'\n'+'Training Epoch: ' + str(self.epoch))
         # optimizer
         self.optimizer = self.set_optimizer()
@@ -192,26 +200,6 @@ class Trainer_Scalable():
         # dataloader
         self.logger.info('Training Files length:' + str(len(dataloader)))
 
-        # Frezee layers in model
-        ## all
-        # params_to_train = ['entropy_bottleneck_b', 
-        #                    'entropy_bottleneck_e',
-        #                    'adapter',
-        #                    'transpose_adapter',
-        #                    'latentspace_transform',
-        #                    'classifier'
-        #                    ]
-        ## base
-        params_to_train = ['entropy_bottleneck_b', 
-                           'adapter',
-                           'latentspace_transform',
-                           'classifier'
-                           ]
-        ## enhancemet
-        # params_to_train = ['entropy_bottleneck_e', 
-        #                    'transpose_adapter'
-        #                    ]
-        
         for name, param in self.model.named_parameters():
             # Set True only for params in the list 'params_to_train'
             decomposed_name = name.split(".")
@@ -219,22 +207,22 @@ class Trainer_Scalable():
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-          
         
-        start_time = time.time()
-        for batch_step, (coords, feats, labels) in enumerate(tqdm(dataloader)):
+        for batch_step, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
             self.optimizer.zero_grad()
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            labels = torch.from_numpy(np.array(labels))
+            x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
+            # labels = torch.from_numpy(labels)
+            
+            # labels = torch.from_numpy(np.array(labels))
             # if x.shape[0] > 6e5: continue
             # forward
-            out_set = self.model(x, training=True)
+            out_set = self.model(x, x_fix_pts, training=True)
             # loss    
             bce, bce_list = 0, []
             for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
                 curr_bce = get_bce(out_cls, ground_truth)/float(out_cls.__len__())
-                # curr_bce = get_bce(out_cls, ground_truth)/float(x.__len__())
                 bce += curr_bce 
                 bce_list.append(curr_bce.item())
                 
@@ -253,12 +241,18 @@ class Trainer_Scalable():
             bits_e = get_bits(out_set['likelihood_e'])
             bits_e_avg = bits_e / len(out_set['nums_list'][2])
 
+            bpp_e = bits_e / float(x.__len__())
+
             ## CE classification
             ce_classification = get_CE_loss(out_set['logits'], labels.to(device)) 
 
+            # sum_loss = self.config.alpha * bce + self.config.beta * bpp_e
             # sum_loss = self.config.alpha * (mse + self.config.gamma * ce_classification) + self.config.beta * (bits_b_avg + bits_e_avg)
+            
             ## loss for base branch
-            sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+            # sum_loss = self.config.alpha * ce_classification + self.config.beta * bits_b_avg
+            # sum_loss = ce_classification
+            sum_loss = self.config.alpha * mse + self.config.beta * bpp_e
 
             # # backward & optimize
             # sum_loss.requires_grad = True
@@ -282,12 +276,14 @@ class Trainer_Scalable():
                 metrics_calculator = []
                 for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
                     metrics_calculator.append(get_metrics(out_cls, ground_truth))
+                
                 self.record_set['bce'].append(bce.item())
                 self.record_set['mse'].append(mse.item())
                 self.record_set['bces'].append(bce_list)
                 self.record_set['mses'].append(mse_list)
                 self.record_set['ce_cls'].append(ce_classification.item())
                 self.record_set['bpp'].append(bpp.item())
+                self.record_set['bpp_e'].append(bpp_e.item())
                 self.record_set['bits'].append(bits_avg.item())
                 self.record_set['bits_b'].append(bits_b_avg.item())
                 self.record_set['bits_e'].append(bits_e_avg.item())

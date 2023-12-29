@@ -49,14 +49,6 @@ def get_metrics(data, groud_truth):
     mask_pred = istopk(data, nums, rho=1.0)
     metrics = get_cls_metrics(mask_pred, mask_real)
 
-    return metrics[0]
-
-def get_metrics_1scale(data, groud_truth):
-    mask_real = isin(data.C, groud_truth.C)
-    nums = [len(C) for C in groud_truth.decomposed_coordinates]
-    mask_pred = istopk(data, nums, rho=1.0)
-    metrics = get_cls_metrics(mask_pred, mask_real)
-
     return metrics
 
 def get_cls_metrics(pred, real):
@@ -69,5 +61,5 @@ def get_cls_metrics(pred, real):
     recall = TP / (TP + FN + 1e-7)
     IoU = TP / (TP + FP + FN + 1e-7)
 
-    return [round(precision, 4), round(recall, 4), round(IoU, 4)]
+    return round(precision, 4), round(recall, 4), round(IoU, 4)
 

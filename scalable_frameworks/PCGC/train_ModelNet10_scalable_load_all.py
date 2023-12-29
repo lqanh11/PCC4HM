@@ -7,8 +7,7 @@ import MinkowskiEngine as ME
 # from data_loader import PCDataset, make_data_loader
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
 from pcc_model_scalable import PCCModel, PCCModel_Scalable_ForBest
-from classification_model import MinkowskiFCNN
-from trainer_scalable_load_all import Trainer_Load_All
+from scalable_frameworks.PCGC.trainer_scalable import Trainer_Load_All
 import random
 
 def parse_args():
@@ -22,7 +21,7 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/20231220_modelnet10_dense_FIXrec_TRAINbase_FIXres-bce_adapterCONV_4channels_alpha_16000.0_000/ckpts/epoch_20.pth')
+    parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--batch_size", type=int, default=4)
@@ -100,8 +99,11 @@ if __name__ == '__main__':
     model_dict = model.state_dict()
 
 
-    state_dict = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/20231213_modelnet10_dense_FIXrec_TRAINbase_LEAVEres_alpha_16000.0_000/ckpts/epoch_10.pth")
-    model_compression_dict = state_dict["model"]
+    state_dict = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/old/20231220_modelnet10_dense_FIXrec_TRAINbase_FIXres-bce_adapterCONV_4channels_alpha_16000.0_000/ckpts/epoch_20.pth")
+    model_compression_dict_base = state_dict["model"]
+
+    state_dict = torch.load("/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/20231220_modelnet10_dense_FIXrec_FIXbase_TRAINres-bce_adapterCONV_4channels_alpha_10.0_003/ckpts/epoch_10.pth")
+    model_compression_dict_enhance = state_dict["model"]
     ## load pre-trained model
     # model_compression = PCCModel()
 
@@ -137,25 +139,35 @@ if __name__ == '__main__':
         decomposed_key = k.split(".")
         if("encoder" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key] 
+            processed_dict[k] = model_compression_dict_base[pretrained_key] 
         if("decoder" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
+            processed_dict[k] = model_compression_dict_base[pretrained_key]
         if("entropy_bottleneck" in decomposed_key):
             pretrained_key = ".".join(decomposed_key[:])
-            processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("entropy_bottleneck_b" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[:])
-        #     processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("adapter" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[:])
-        #     processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("latentspace_transform" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[:])
-        #     processed_dict[k] = model_compression_dict[pretrained_key]
-        # if("classifier" in decomposed_key):
-        #     pretrained_key = ".".join(decomposed_key[:])
-        #     processed_dict[k] = model_compression_dict[pretrained_key]
+            processed_dict[k] = model_compression_dict_base[pretrained_key]
+        if("entropy_bottleneck_b" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_base[pretrained_key]
+        if("adapter" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_base[pretrained_key]
+        if("classifier" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_base[pretrained_key]
+
+        if("entropy_bottleneck_e" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_enhance[pretrained_key]
+        if("transpose_adapter" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_enhance[pretrained_key]
+        if("analysis_residual" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_enhance[pretrained_key]
+        if("systhesis_residual" in decomposed_key):
+            pretrained_key = ".".join(decomposed_key[:])
+            processed_dict[k] = model_compression_dict_enhance[pretrained_key]
 
         for k in processed_dict.keys(): 
             model_dict[k] = processed_dict[k]
@@ -184,7 +196,7 @@ if __name__ == '__main__':
     # training
     for epoch in range(0, args.epoch):
         if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
-        trainer.train(train_dataloader)
+        # trainer.train(train_dataloader)
         # trainer.validation(val_dataloader, 'Validation')
         trainer.test(test_dataloader, 'Test')
     

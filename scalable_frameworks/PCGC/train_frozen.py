@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import MinkowskiEngine as ME
 from data_loader_h5 import ModelNetH5_voxelize_all, make_data_loader_minkowski
-from pcc_model_scalable import PCCModel, PCCModel_Classification, PCCModel_Classification_Split
+from pcc_model_scalable import PCCModel, PCCModel_Classification, PCCModel_Classification_Split, PCCModel_Classification_Compress
 from classification_model import MinkowskiPointNet
 from trainer_frozen import Trainer
 import random
@@ -17,15 +17,16 @@ def parse_args():
     parser.add_argument("--data_split_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     parser.add_argument("--resolution", type=int, default=128, help='resolution for resampled PC')
     
-    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=16000., help="weights for distoration.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
     parser.add_argument("--split_channel", type=int, default=4, help="number of channel for base layer.")
 
+    # parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/Scalable_Cls/20231219_modelnet10_FIXreconstruction_TRANcls_resolution128_split_4_000/ckpts/epoch_14.pth')
     parser.add_argument("--init_ckpt", default='')
     parser.add_argument("--lr", type=float, default=8e-4)
 
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=15)
     parser.add_argument("--check_time", type=float, default=10,  help='frequency for recording state (min).') 
     
@@ -90,7 +91,8 @@ if __name__ == '__main__':
                             check_time=args.check_time)    
     
     # Init model
-    model = PCCModel_Classification_Split(split_channel=args.split_channel)
+    # model = PCCModel_Classification_Split(split_channel=args.split_channel)
+    model = PCCModel_Classification_Compress()
     
     ## load pre-trained model
     model_dict = model.state_dict()
@@ -141,7 +143,7 @@ if __name__ == '__main__':
     # if models_differ == 0:
     #     print('Models match perfectly! :)')
 
-    model.load_state_dict(model_dict)
+    # model.load_state_dict(model_dict)
     
     # trainer    
     trainer = Trainer(config=training_config, model=model)

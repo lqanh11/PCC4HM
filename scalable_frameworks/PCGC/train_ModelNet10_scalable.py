@@ -9,7 +9,7 @@ from data_loader_classification import PCDataset_Classification, make_data_loade
 from pcc_model_scalable import PCCModel_Scalable, PCCModel
 
 from classification_model import MinkowskiPointNet
-from trainer_scalable import Trainer_Scalable
+from scalable_frameworks.PCGC.trainer_scalable_old import Trainer_Scalable
 
 def parse_args():
     parser = argparse.ArgumentParser(

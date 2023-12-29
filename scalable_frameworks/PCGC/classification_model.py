@@ -370,3 +370,149 @@ class MinkoPointNet_Conv_2(ME.MinkowskiNetwork):
         x1 = self.global_max_pool(x)
         x2 = self.global_avg_pool(x)
         return self.final(ME.cat(x1, x2)).F
+    
+class MinkoPointNet_Backbone(ME.MinkowskiNetwork):
+    def __init__(
+            self, 
+            in_channel = 3,
+            out_channel = 40,
+            embedding_channel=1024,
+            channels=(64, 64, 64, 128),
+            D =3
+        ):
+        ME.MinkowskiNetwork.__init__(self, D)
+        self.network_initialization(
+            in_channel,
+            out_channel,
+            channels=channels,
+            embedding_channel=embedding_channel,
+            kernel_size=3,
+            D=D,
+        )
+        self.weight_initialization()
+    
+    def get_conv_block(self, in_channel, out_channel, kernel_size, stride):
+        return nn.Sequential(
+            ME.MinkowskiConvolution(
+                in_channel,
+                out_channel,
+                kernel_size=kernel_size,
+                stride=stride,
+                dimension=self.D,
+            ),
+            ME.MinkowskiBatchNorm(out_channel),
+            ME.MinkowskiLeakyReLU(),
+        )
+
+    def network_initialization(
+        self,
+        in_channel,
+        out_channel,
+        channels,
+        embedding_channel,
+        kernel_size,
+        D=3,
+    ):
+        self.conv1 = self.get_conv_block(
+            in_channel=in_channel,
+            out_channel=channels[0],
+            kernel_size=kernel_size,
+            stride=1,
+        )
+        self.conv2 = self.get_conv_block(
+            in_channel=channels[0],
+            out_channel=channels[1],
+            kernel_size=kernel_size,
+            stride=1,
+        )
+        self.conv3 = self.get_conv_block(
+            in_channel=channels[1],
+            out_channel=channels[2],
+            kernel_size=kernel_size,
+            stride=1,
+        )
+        self.conv4 = self.get_conv_block(
+            in_channel=channels[2],
+            out_channel=channels[3],
+            kernel_size=kernel_size,
+            stride=1,
+        )
+        self.conv5 = self.get_conv_block(
+            in_channel=channels[3],
+            out_channel=embedding_channel,
+            kernel_size=kernel_size,
+            stride=1,
+        )
+
+        self.pool = ME.MinkowskiMaxPooling(kernel_size=3, stride=2, dimension=D)
+        self.global_max_pool = ME.MinkowskiGlobalMaxPooling()
+        self.global_avg_pool = ME.MinkowskiGlobalAvgPooling()
+
+    def weight_initialization(self):
+        for m in self.modules():
+            if isinstance(m, ME.MinkowskiConvolution):
+                ME.utils.kaiming_normal_(m.kernel, mode="fan_out", nonlinearity="relu")
+
+            if isinstance(m, ME.MinkowskiBatchNorm):
+                nn.init.constant_(m.bn.weight, 1)
+                nn.init.constant_(m.bn.bias, 0)
+
+    def forward(self, input):
+        x = input#.sparse()
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.pool(x)
+        x1 = self.global_max_pool(x)
+        x2 = self.global_avg_pool(x)
+        return ME.cat(x1, x2)
+
+class MinkoPointNet_MLP(ME.MinkowskiNetwork):
+    def __init__(
+            self, 
+            in_channel = 3,
+            out_channel = 40,
+            embedding_channel=1024,
+            channels=(64, 64, 64, 128),
+            D =3
+        ):
+        ME.MinkowskiNetwork.__init__(self, D)
+        self.network_initialization(
+            out_channel,
+            embedding_channel=embedding_channel,
+        )
+        self.weight_initialization()
+
+    def get_mlp_block(self, in_channel, out_channel):
+        return nn.Sequential(
+            ME.MinkowskiLinear(in_channel, out_channel, bias=False),
+            ME.MinkowskiBatchNorm(out_channel),
+            ME.MinkowskiLeakyReLU(),
+        )
+
+    def network_initialization(
+        self,
+        out_channel,
+        embedding_channel,
+    ):
+        self.final = nn.Sequential(
+            self.get_mlp_block(embedding_channel*2, 512),
+            ME.MinkowskiDropout(),
+            self.get_mlp_block(512, 512),
+            ME.MinkowskiLinear(512, out_channel, bias=True),
+        )
+
+    def weight_initialization(self):
+        for m in self.modules():
+            if isinstance(m, ME.MinkowskiConvolution):
+                ME.utils.kaiming_normal_(m.kernel, mode="fan_out", nonlinearity="relu")
+
+            if isinstance(m, ME.MinkowskiBatchNorm):
+                nn.init.constant_(m.bn.weight, 1)
+                nn.init.constant_(m.bn.bias, 0)
+
+    def forward(self, input):
+        x = input#.sparse()
+        return self.final(x).F

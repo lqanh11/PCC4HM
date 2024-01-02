@@ -19,7 +19,7 @@ class Trainer_Load_All():
 
         self.model = model.to(device)
         # self.logger.info(model)
-        self.load_state_dict()
+        # self.load_state_dict()
         self.epoch = 0
         self.record_set = {'bce':[],
                            'mse':[],
@@ -65,7 +65,7 @@ class Trainer_Load_All():
     def save_model(self):
         torch.save({'model': self.model.state_dict()}, 
             os.path.join(self.config.ckptdir, 'epoch_' + str(self.epoch) + '.pth'))
-        return
+        return os.path.join(self.config.ckptdir, 'epoch_' + str(self.epoch) + '.pth')
 
     def set_optimizer(self):
         params_lr_list = []
@@ -189,7 +189,7 @@ class Trainer_Load_All():
             accuracy = metrics.accuracy_score(np.concatenate(labels_list), np.concatenate(preds_list))
             self.logger.info(f"Test accuracy: {accuracy}")
 
-        return
+        return sum_loss.item()
 
     def train(self, dataloader, params_to_train):
         self.logger.info('='*40+'\n'+'Training Epoch: ' + str(self.epoch))
@@ -296,7 +296,7 @@ class Trainer_Load_All():
             torch.cuda.empty_cache()# empty cache.
 
         with torch.no_grad(): self.record(main_tag='Train', global_step=self.epoch*len(dataloader)+batch_step)
-        self.save_model()
+        model_path = self.save_model()
         self.epoch += 1
 
-        return
+        return model_path

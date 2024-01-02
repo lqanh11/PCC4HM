@@ -434,15 +434,15 @@ class TransposeAdapter(torch.nn.Module):
 class AnalysisResidual(torch.nn.Module):
     def __init__(self, channels=[8,4]):
         super().__init__()
-        self.down0 = ME.MinkowskiConvolution(
-            in_channels=channels[0],
-            out_channels=channels[1],
-            kernel_size=2,
-            stride=2,
-            bias=True,
-            dimension=3)
+        # self.down0 = ME.MinkowskiConvolution(
+        #     in_channels=channels[0],
+        #     out_channels=channels[1],
+        #     kernel_size=2,
+        #     stride=2,
+        #     bias=True,
+        #     dimension=3)
         self.conv0 = ME.MinkowskiConvolution(
-            in_channels=channels[1],
+            in_channels=channels[0],
             out_channels=channels[1],
             kernel_size=3,
             stride=1,
@@ -456,13 +456,13 @@ class AnalysisResidual(torch.nn.Module):
         self.relu = ME.MinkowskiReLU(inplace=True)
 
     def forward(self, x):
-        out = self.relu(self.conv0(self.relu(self.down0(x))))
-        # out = self.relu(self.conv0(x))
+        # out = self.relu(self.conv0(self.relu(self.down0(x))))
+        out = self.relu(self.conv0(x))
         out = self.block0(out)
         return out
 
 
-class SysthesisResidual(torch.nn.Module):
+class SynthesisResidual(torch.nn.Module):
     def __init__(self, channels=[4,8]):
         super().__init__()
         self.conv0 = ME.MinkowskiConvolution(
@@ -472,13 +472,13 @@ class SysthesisResidual(torch.nn.Module):
             stride=1,
             bias=True,
             dimension=3)
-        self.up0 = ME.MinkowskiConvolutionTranspose(
-            in_channels=channels[1],
-            out_channels=channels[1],
-            kernel_size=2,
-            stride=2,
-            bias=True,
-            dimension=3)
+        # self.up0 = ME.MinkowskiConvolutionTranspose(
+        #     in_channels=channels[1],
+        #     out_channels=channels[1],
+        #     kernel_size=2,
+        #     stride=2,
+        #     bias=True,
+        #     dimension=3)
         self.block0 = make_layer(
             block=InceptionResNet,
             block_layers=3, 
@@ -489,8 +489,8 @@ class SysthesisResidual(torch.nn.Module):
     def forward(self, x, nums_list, ground_truth_list, training=True):
         #
         
-        out = self.relu(self.up0(self.relu(self.conv0(x))))
-        # out = self.relu(self.conv0(x))
+        # out = self.relu(self.up0(self.relu(self.conv0(x))))
+        out = self.relu(self.conv0(x))
         out = self.block0(out)
         
         return out

@@ -17,14 +17,14 @@ def parse_args():
 
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
-    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=1., help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10')
+    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
     
     parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/old/20231220_modelnet10_dense_FIXrec_TRAINbase_FIXres-bce_adapterCONV_4channels_alpha_16000.0_000/ckpts/epoch_20.pth')
+    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/20231230_encFIXa10_baseTRANc4_resolution128_alpha320.0_000/best_model/epoch_177.pth')
     parser.add_argument("--init_ckpt", default='')
 
     parser.add_argument('--params_to_train', 
@@ -46,10 +46,10 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=0.001)
 
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epoch", type=int, default=10)
+    parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='20231229_recFIXa10_baseFIXc4_resTRAINc8', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20231231_encFIXa10_baseFIXc4_enhaTRAINc4_Quantize_MSE', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -109,6 +109,7 @@ class TrainingConfig():
         self.resolution = args.resolution
         self.lr = args.lr
         self.check_time = args.check_time
+        self.save_best_model_path = os.path.join(logdir, 'best_model')
 
 def get_file_dirs(root_path):
 
@@ -202,9 +203,9 @@ if __name__ == '__main__':
 
     # trainer    
     trainer = Trainer_Load_All(config=training_config, model=model)
-    if args.init_ckpt != '':
-        print(f'Load CKPT from {args.init_ckpt}')
-        trainer.load_state_dict()
+    # if args.init_ckpt != '':
+    #     print(f'Load CKPT from {args.init_ckpt}')
+    #     trainer.load_state_dict()
 
     # dataset
     filedirs = get_file_dirs(args.root_path)
@@ -223,9 +224,30 @@ if __name__ == '__main__':
     # all
     params_to_train = args.params_to_train
     # training
+    # Set up early stopping parameters
+    patience = 5  # Number of epochs with no improvement after which training will be stopped
+    best_val_loss = float('inf')
+    current_patience = 0
+
+
+    # val_loss = trainer.test(test_dataloader, 'Test')
+
     for epoch in range(0, args.epoch):
         if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
-        trainer.train(train_dataloader, params_to_train)
+        model_path = trainer.train(train_dataloader, params_to_train)
         # trainer.validation(val_dataloader, 'Validation')
-        trainer.test(test_dataloader, 'Test')
+        val_loss = trainer.test(test_dataloader, 'Test')
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_path = model_path
+            current_patience = 0
+        else:
+            current_patience += 1
+        
+        if current_patience >= patience:
+            print(f"Early stopping after {epoch + 1} epochs.")
+            os.makedirs(training_config.save_best_model_path, exist_ok=True)
+            shutil.copy(best_model_path , str(training_config.save_best_model_path))
+            break
     

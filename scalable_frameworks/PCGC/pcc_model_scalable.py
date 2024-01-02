@@ -2,26 +2,101 @@ import torch
 import torch.nn.functional as F
 import MinkowskiEngine as ME
 
-from autoencoder import Encoder, Decoder, Adapter, TransposeAdapter, LatentSpaceTransform, AnalysisResidual, SysthesisResidual
+from autoencoder import Encoder, Decoder, Adapter, TransposeAdapter, LatentSpaceTransform, AnalysisResidual, SynthesisResidual
 from entropy_model import EntropyBottleneck
 from classification_model import MinkowskiPointNet, MinkowskiFCNN, MinkoPointNet_Conv_2, MinkoPointNet_Backbone, MinkoPointNet_MLP
 
-
-class PCCModel_Scalable_ForBest(torch.nn.Module):
+class PCCModel_Classification_Adapter(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = Encoder(channels=[1,16,32,64,32,8])
-        self.decoder = Decoder(channels=[8,64,32,16])
         self.entropy_bottleneck = EntropyBottleneck(8)
         self.entropy_bottleneck_b = EntropyBottleneck(4)
-        self.entropy_bottleneck_e = EntropyBottleneck(8)
         self.adapter = Adapter(channels=[8,4])
         self.transpose_adapter = TransposeAdapter(channels=[4,8])
-        # self.latentspace_transform = LatentSpaceTransform(channels=[8,8])
         self.classifier = MinkoPointNet_Conv_2(in_channel=4, out_channel=10, embedding_channel=1024)
+
+    def get_likelihood_o(self, data, quantize_mode):
+        data_F, likelihood = self.entropy_bottleneck(data.F,
+            quantize_mode=quantize_mode)
+        data_Q = ME.SparseTensor(
+            features=data_F, 
+            coordinate_map_key=data.coordinate_map_key, 
+            coordinate_manager=data.coordinate_manager, 
+            device=data.device)
+
+        return data_Q, likelihood
+    
+    def get_likelihood_b(self, data, quantize_mode):
+        data_F, likelihood = self.entropy_bottleneck_b(data.F,
+            quantize_mode=quantize_mode)
+        data_Q = ME.SparseTensor(
+            features=data_F, 
+            coordinate_map_key=data.coordinate_map_key, 
+            coordinate_manager=data.coordinate_manager, 
+            device=data.device)
+
+        return data_Q, likelihood
+
+    def forward(self, x, x_fix_pts, training=True):
+        # Encoder
+        y_list = self.encoder(x)
+        y = y_list[0]
+        ground_truth_list = y_list[1:] + [x] 
+        nums_list = [[len(C) for C in ground_truth.decomposed_coordinates] \
+            for ground_truth in ground_truth_list]
         
-        self.analysis_residual = AnalysisResidual(channels=[8,8])
-        self.systhesis_residual = SysthesisResidual(channels=[8,8])
+        # Quantizer & Entropy Model - Original
+        y_q, likelihood = self.get_likelihood_o(y, 
+            quantize_mode="symbols")
+        
+        # Quantizer & Entropy Model - Scalable Coding - Base
+        z = self.adapter(y_q)
+        z_q, likelihood_b = self.get_likelihood_b(z, 
+            quantize_mode="noise" if training else "symbols")
+        
+        # Classification
+        logits = self.classifier(z_q)
+
+        # Transpose adapter 
+        y_b = self.transpose_adapter(z_q, [], [y], training)
+
+        return {
+                'logits':logits,
+                'likelihood_b':likelihood_b,
+                'y_b': [y_b],
+                'y': [y],
+                'nums_list': nums_list
+                }
+
+class PCCModel_Scalable_ForBest(torch.nn.Module):
+    def __init__(
+        self, 
+        encoder_channels = [1,16,32,64,32,8],
+        decoder_channels = [8,64,32,16],
+        adapter_channels = [8,4],
+        t_adapter_channels = [4,8],
+
+        num_cls = 10,
+        embedding_channel_cls = 1024,
+
+        analysis_channels = [8,4],
+        synthesis_channels = [4,8]
+    ):
+        super().__init__()
+        self.encoder = Encoder(encoder_channels)
+        self.decoder = Decoder(decoder_channels)
+        self.entropy_bottleneck = EntropyBottleneck(encoder_channels[-1])
+        self.entropy_bottleneck_b = EntropyBottleneck(adapter_channels[-1])
+        self.entropy_bottleneck_e = EntropyBottleneck(analysis_channels[-1])
+        self.adapter = Adapter(adapter_channels)
+        self.transpose_adapter = TransposeAdapter(t_adapter_channels)
+        self.classifier = MinkoPointNet_Conv_2(in_channel=adapter_channels[-1], 
+                                               out_channel=num_cls, 
+                                               embedding_channel=embedding_channel_cls)
+        
+        self.analysis_residual = AnalysisResidual(analysis_channels)
+        self.systhesis_residual = SynthesisResidual(synthesis_channels)
 
     def get_likelihood_o(self, data, quantize_mode):
         data_F, likelihood = self.entropy_bottleneck(data.F,
@@ -66,10 +141,10 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
 
         # Quantizer & Entropy Model - Original
         y_q, likelihood = self.get_likelihood_o(y, 
-            quantize_mode="noise" if training else "symbols")
+            quantize_mode="symbols")
         
         # Quantizer & Entropy Model - Scalable Coding - Base
-        z = self.adapter(y)
+        z = self.adapter(y_q)
         z_q, likelihood_b = self.get_likelihood_b(z, 
             quantize_mode="noise" if training else "symbols")
         
@@ -94,18 +169,18 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
 
         # Transpose adapter
         nums_list_for_e = [[len(C) for C in y.decomposed_coordinates] \
-            for y in [y]]
+            for y in [y_q]]
         
-        y_b = self.transpose_adapter(z_q, nums_list_for_e, [y], training)
+        y_b = self.transpose_adapter(z_q, nums_list_for_e, [y_q], training)
 
-        y_r_features =  y.F - y_b.F
+        y_r_features =  y_q.F - y_b.F
 
 
         y_r = ME.SparseTensor(
             features=y_r_features, 
-            coordinate_map_key=y.coordinate_map_key, 
-            coordinate_manager=y.coordinate_manager, 
-            device=y.device)
+            coordinate_map_key=y_q.coordinate_map_key, 
+            coordinate_manager=y_q.coordinate_manager, 
+            device=y_q.device)
         # y_r = ME.SparseTensor(
         #     coordinates=y.C,
         #     features=y_r_features,
@@ -118,15 +193,15 @@ class PCCModel_Scalable_ForBest(torch.nn.Module):
         z_r_q, likelihood_e = self.get_likelihood_e(z_r, 
             quantize_mode="noise" if training else "symbols")
         
-        y_r_hat = self.systhesis_residual(z_r_q, nums_list_for_e, [y], training)
+        y_r_hat = self.systhesis_residual(z_r_q, nums_list_for_e, [y_q], training)
         
         y_scalable_features = y_r_hat.F + y_b.F
 
         y_scalable = ME.SparseTensor(
             features=y_scalable_features, 
-            coordinate_map_key=y.coordinate_map_key, 
-            coordinate_manager=y.coordinate_manager, 
-            device=y.device)
+            coordinate_map_key=y_r_hat.coordinate_map_key, 
+            coordinate_manager=y_r_hat.coordinate_manager, 
+            device=y_r_hat.device)
         
         # Decoder
         out_cls_list, out = self.decoder(y_scalable, nums_list, ground_truth_list, training)

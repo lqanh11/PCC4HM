@@ -116,11 +116,9 @@ class Trainer_Cls_Only():
             for idx, (coords, coords_fix_pts, feats, feats_fix_pts, labels) in enumerate(tqdm(dataloader)):
                 # data
                 x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-                x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
-                # labels = torch.from_numpy(labels)
 
                 # # Forward.
-                out_set = self.model(x, x_fix_pts, training=False)
+                out_set = self.model(x, training=False)
                 # loss    
                 # bce, bce_list = 0, []
                 # for out_cls, ground_truth in zip(out_set['out_cls_list'], out_set['ground_truth_list']):
@@ -194,13 +192,11 @@ class Trainer_Cls_Only():
             self.optimizer.zero_grad()
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)
-            x_fix_pts = ME.SparseTensor(features=feats_fix_pts.float(), coordinates=coords_fix_pts, device=device)
-            # labels = torch.from_numpy(labels)
             
             # labels = torch.from_numpy(np.array(labels))
             # if x.shape[0] > 6e5: continue
             # forward
-            out_set = self.model(x, x_fix_pts, training=True)
+            out_set = self.model(x, training=True)
             # loss    
                 
             mse, mse_list = 0, []

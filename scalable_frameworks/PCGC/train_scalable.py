@@ -6,7 +6,7 @@ import torch
 import MinkowskiEngine as ME
 
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
-from pcc_model_scalable import PCCModel, PCCModel_Scalable_ForBest
+from pcc_model_scalable import PCCModel_Scalable_ForBest_KeepCoords
 from trainer_scalable import Trainer_Load_All
 import random
 import shutil
@@ -23,8 +23,8 @@ def parse_args():
 
     parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
     
-    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/20231230_encFIXa10_baseTRANc4_resolution128_alpha320.0_000/best_model/epoch_177.pth')
+    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_0.25_000/ckpts/epoch_10.pth')
+    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/20231230_encFIXa025_baseTRANc4_keepcoords_resolution128_alpha320.0_000/best_model/epoch_195.pth')
     parser.add_argument("--init_ckpt", default='')
 
     parser.add_argument('--params_to_train', 
@@ -36,7 +36,7 @@ def parse_args():
                                 #    'entropy_bottleneck', # original
                                     # 'entropy_bottleneck_b', # base
                                     # 'adapter', # base
-                                    # 'classifier', # base
+                                #    'classifier', # base
                                    'entropy_bottleneck_e', # enhancemet
                                    'transpose_adapter', # enhancemet
                                    'analysis_residual', # enhancemet
@@ -46,10 +46,10 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=0.001)
 
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epoch", type=int, default=1000)
+    parser.add_argument("--epoch", type=int, default=51)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='20231231_encFIXa10_baseFIXc4_enhaTRAINc4_Quantize_MSE', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='20240103_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -138,7 +138,19 @@ if __name__ == '__main__':
     training_config = TrainingConfig(args)
     
     # model
-    model = PCCModel_Scalable_ForBest()
+    model = PCCModel_Scalable_ForBest_KeepCoords(
+        encoder_channels = [1,16,32,64,32,8],
+        decoder_channels = [8,64,32,16],
+        adapter_channels = [8,4,4],
+        t_adapter_channels = [4,4,8],
+
+        num_cls = 10,
+        embedding_channel_cls = 1024,
+
+        analysis_channels = [8,32,8],
+        synthesis_channels = [8,32,8],
+        layer_blocks = 3
+    )
     model_dict = model.state_dict() 
     processed_dict = {}
 
@@ -168,6 +180,9 @@ if __name__ == '__main__':
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("adapter" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_base[pretrained_key]
+            if("latentspacetransform" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("classifier" in decomposed_key):

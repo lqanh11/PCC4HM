@@ -3,7 +3,42 @@ import MinkowskiEngine as ME
 
 from data_utils import isin, istopk
 
+class ResidualBottleneckBlock(torch.nn.Module):
+    """Residual Bottleneck Block
+    """
+    def __init__(self, channels: int, kernel_size: int = 3) -> None:
 
+        super().__init__()
+        self.conv0 = ME.MinkowskiConvolution(
+                        in_channels=channels,
+                        out_channels=channels,
+                        kernel_size= 1,
+                        stride=1,
+                        bias=True,
+                        dimension=3)
+        self.conv1 = ME.MinkowskiConvolution(
+                        in_channels=channels,
+                        out_channels=channels,
+                        kernel_size= kernel_size,
+                        stride=1,
+                        bias=True,
+                        dimension=3)
+        self.conv2 = ME.MinkowskiConvolution(
+                        in_channels=channels,
+                        out_channels=channels,
+                        kernel_size= 1,
+                        stride=1,
+                        bias=True,
+                        dimension=3)
+        
+        self.activation = ME.MinkowskiReLU(inplace=True)
+
+    def forward(self, x):
+        out = self.activation(self.conv0(x))
+        out = self.activation(self.conv1(out))
+        out = self.activation(self.conv2(out))
+
+        return x + out
 class InceptionResNet(torch.nn.Module):
     """Inception Residual Network
     """
@@ -397,7 +432,6 @@ class Adapter(torch.nn.Module):
         out = self.block0(out)
         return out
 
-
 class TransposeAdapter(torch.nn.Module):
     def __init__(self, channels=[4,8]):
         super().__init__()
@@ -430,39 +464,7 @@ class TransposeAdapter(torch.nn.Module):
         
         return out
 
-
-class AnalysisResidual(torch.nn.Module):
-    def __init__(self, channels=[8,4]):
-        super().__init__()
-        # self.down0 = ME.MinkowskiConvolution(
-        #     in_channels=channels[0],
-        #     out_channels=channels[1],
-        #     kernel_size=2,
-        #     stride=2,
-        #     bias=True,
-        #     dimension=3)
-        self.conv0 = ME.MinkowskiConvolution(
-            in_channels=channels[0],
-            out_channels=channels[1],
-            kernel_size=3,
-            stride=1,
-            bias=True,
-            dimension=3)
-        self.block0 = make_layer(
-            block=InceptionResNet,
-            block_layers=3, 
-            channels=channels[1])
-        
-        self.relu = ME.MinkowskiReLU(inplace=True)
-
-    def forward(self, x):
-        # out = self.relu(self.conv0(self.relu(self.down0(x))))
-        out = self.relu(self.conv0(x))
-        out = self.block0(out)
-        return out
-
-
-class SynthesisResidual(torch.nn.Module):
+class TransposeAdapter_GenerativeConv(torch.nn.Module):
     def __init__(self, channels=[4,8]):
         super().__init__()
         self.conv0 = ME.MinkowskiConvolution(
@@ -472,26 +474,140 @@ class SynthesisResidual(torch.nn.Module):
             stride=1,
             bias=True,
             dimension=3)
-        # self.up0 = ME.MinkowskiConvolutionTranspose(
-        #     in_channels=channels[1],
+        self.up0 = ME.MinkowskiGenerativeConvolutionTranspose(
+            in_channels=channels[1],
+            out_channels=channels[1],
+            kernel_size=2,
+            stride=2,
+            bias=True,
+            dimension=3)
+        self.block0 = make_layer(
+            block=InceptionResNet,
+            block_layers=3, 
+            channels=channels[1]) 
+        
+        self.conv0_cls = ME.MinkowskiConvolution(
+            in_channels=channels[1],
+            out_channels=1,
+            kernel_size= 3,
+            stride=1,
+            bias=True,
+            dimension=3)
+
+        self.relu = ME.MinkowskiReLU(inplace=True)
+        self.pruning = ME.MinkowskiPruning()
+
+    def prune_voxel(self, data, data_cls, nums, ground_truth, training):
+        mask_topk = istopk(data_cls, nums)
+        if training: 
+            assert not ground_truth is None
+            mask_true = isin(data_cls.C, ground_truth.C)
+            mask = mask_topk + mask_true
+        else: 
+            mask = mask_topk
+        data_pruned_for_coordinate = self.pruning(data_cls, mask.to(data.device))
+        data_pruned_for_features = self.pruning(data, mask_topk.to(data.device))
+        return data_pruned_for_coordinate, data_pruned_for_features
+    
+    def forward(self, x, nums_list, ground_truth_list, training=True):
+        #
+        
+        out = self.relu(self.up0(self.relu(self.conv0(x))))
+        out = self.block0(out)
+
+        out_cls = self.conv0_cls(out)
+
+        out_for_coordinate, out_for_features = self.prune_voxel(out, out_cls, 
+            nums_list[0], ground_truth_list[0], training)
+        
+        return out_for_coordinate, out_for_features
+        # return out
+
+class AnalysisResidual(torch.nn.Module):
+    def __init__(self, channels=[8,32,8], num_blocks=3):
+        super().__init__()
+        # self.down0 = ME.MinkowskiConvolution(
+        #     in_channels=channels[0],
         #     out_channels=channels[1],
         #     kernel_size=2,
         #     stride=2,
         #     bias=True,
         #     dimension=3)
+        self.down0 = ME.MinkowskiConvolution(
+            in_channels=channels[0],
+            out_channels=channels[1],
+            kernel_size=3,
+            stride=1,
+            bias=True,
+            dimension=3)
         self.block0 = make_layer(
-            block=InceptionResNet,
-            block_layers=3, 
+            block=ResidualBottleneckBlock,
+            block_layers=num_blocks, 
             channels=channels[1])
-        
-        self.relu = ME.MinkowskiReLU(inplace=True)
-    
-    def forward(self, x, nums_list, ground_truth_list, training=True):
-        #
-        
-        # out = self.relu(self.up0(self.relu(self.conv0(x))))
-        out = self.relu(self.conv0(x))
+        self.down1 = ME.MinkowskiConvolution(
+            in_channels=channels[1],
+            out_channels=channels[2],
+            kernel_size=3,
+            stride=1,
+            bias=True,
+            dimension=3)
+        # self.down1 = ME.MinkowskiConvolution(
+        #     in_channels=channels[1],
+        #     out_channels=channels[2],
+        #     kernel_size=2,
+        #     stride=2,
+        #     bias=True,
+        #     dimension=3)
+
+    def forward(self, x):
+        # out = self.relu(self.conv0(self.relu(self.down0(x))))
+        out = self.down0(x)
         out = self.block0(out)
+        out = self.down1(out)
+        return out
+
+
+class SynthesisResidual(torch.nn.Module):
+    def __init__(self, channels=[8,32,8], num_blocks=3):
+        super().__init__()
+        # self.up0 = ME.MinkowskiConvolutionTranspose(
+        #     in_channels=channels[0],
+        #     out_channels=channels[1],
+        #     kernel_size=2,
+        #     stride=2,
+        #     bias=True,
+        #     dimension=3)
+        self.up0 = ME.MinkowskiConvolution(
+            in_channels=channels[0],
+            out_channels=channels[1],
+            kernel_size=3,
+            stride=1,
+            bias=True,
+            dimension=3)
+        self.block0 = make_layer(
+            block=ResidualBottleneckBlock,
+            block_layers=num_blocks, 
+            channels=channels[1])
+        # self.up1 = ME.MinkowskiConvolutionTranspose(
+        #     in_channels=channels[1],
+        #     out_channels=channels[2],
+        #     kernel_size=2,
+        #     stride=2,
+        #     bias=True,
+        #     dimension=3)
+        self.up1 = ME.MinkowskiConvolution(
+            in_channels=channels[1],
+            out_channels=channels[2],
+            kernel_size=3,
+            stride=1,
+            bias=True,
+            dimension=3)
+    
+    def forward(self, x):
+        #
+        out = self.up0(x)
+        out = self.block0(out)
+        out = self.up1(out)
         
         return out
 

@@ -6,7 +6,7 @@ import torch
 import MinkowskiEngine as ME
 
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
-from pcc_model_scalable import PCCModel, PCCModel_Classification_Adapter
+from pcc_model_scalable import PCCModel, PCCModel_Classification_Adapter_KeepCoords
 from trainer_cls_only import Trainer_Cls_Only
 import random
 import shutil
@@ -36,6 +36,7 @@ def parse_args():
                                 #    'entropy_bottleneck', # original
                                     'entropy_bottleneck_b', # base
                                     'adapter', # base
+                                    'latentspacetransform',
                                     'classifier', # base
                                 #    'entropy_bottleneck_e', # enhancemet
                                    'transpose_adapter', # enhancemet
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     training_config = TrainingConfig(args)
     
     # model
-    model = PCCModel_Classification_Adapter()
+    model = PCCModel_Classification_Adapter_KeepCoords()
     model_dict = model.state_dict() 
     processed_dict = {}
 
@@ -168,6 +169,9 @@ if __name__ == '__main__':
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("adapter" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_base[pretrained_key]
+            if("latentspacetransform" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("classifier" in decomposed_key):

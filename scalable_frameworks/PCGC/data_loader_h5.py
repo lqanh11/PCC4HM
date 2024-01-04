@@ -9,6 +9,8 @@ from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
 import MinkowskiEngine as ME
 from data_utils import read_h5_geo_read_all_info
+from data_utils import read_h5_geo_read_all_info, read_ply_ascii_geo, array2vector
+from gpcc import gpcc_decode
 import copy
 
 class InfSampler(Sampler):
@@ -40,6 +42,26 @@ class InfSampler(Sampler):
     def __len__(self):
         return len(self.data_source)
 
+def latentspace_collate_fn(list_data):
+    sparse_xyz_batch, sparse_features_batch, labels_batch = ME.utils.sparse_collate(
+        [d["sparse_coordinates"] for d in list_data],
+        [d["sparse_features"] for d in list_data],
+        [d["label"] for d in list_data],
+        dtype=torch.float32,
+    )
+    num_points_batch = [d["num_points"] for d in list_data]
+    dense_pc_file_dir_batch = [d["dense_pc_file_dir"] for d in list_data]
+    compression_files_dir_batch = [d["compression_files_dir"] for d in list_data]
+
+    return {
+        "sparse_coordinates": sparse_xyz_batch.to(torch.float32),
+        "sparse_features": sparse_features_batch.to(torch.float32),
+
+        "labels": labels_batch,
+        'num_points': num_points_batch,
+        "dense_pc_file_dir": dense_pc_file_dir_batch,
+        "compression_files_dir": compression_files_dir_batch
+    }
 
 def minkowski_collate_fn(list_data):
     dense_xyz_batch, dense_features_batch, labels_batch = ME.utils.sparse_collate(
@@ -225,7 +247,6 @@ class ModelNetH5_voxelize_all(Dataset):
     def __repr__(self):
         return f"ModelNetH5_voxelize_all(phase={self.phase}, length={len(self)}, transform={self.transform})"
 
-
 def make_data_loader_minkowski(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=False, 
                     collate_fn=minkowski_collate_fn):
     args = {
@@ -258,7 +279,118 @@ def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=
     loader = torch.utils.data.DataLoader(dataset, **args)
 
     return loader
-    
+
+class ModelNet_latentspace(Dataset):
+    def __init__(
+        self,
+        entropy_model,
+        phase: str,
+        data_root: str,
+        resolution=128,
+        rate='r7',
+    ):
+        Dataset.__init__(self)
+        # download_modelnet40_dataset()
+        phase = "test" if phase in ["val", "test"] else "train"
+        self.data_root = data_root
+        self.phase = phase
+        self.phase = phase
+        self.resolution = resolution
+        self.rate = rate
+        self.files = glob.glob(os.path.join(data_root, phase, f'{self.resolution}', 'original', "*.ply"))
+        self.entropy_model = entropy_model.cpu()
+
+    def __getitem__(self, i: int) -> dict:
+        label_dict = {
+            'bathtub':0,
+            'bed':1,
+            'chair':2,
+            'desk':3,
+            'dresser':4,
+            'monitor':5,
+            'night_stand':6,
+            'sofa':7,
+            'table':8,
+            'toilet':9
+        }
+
+        ## process latent space
+        basename = os.path.split(self.files[i])[-1].split('.')[0]
+        
+        output_resolution = os.path.join(self.data_root, self.phase, f'{self.resolution}')
+        output_rate = os.path.join(output_resolution, self.rate)
+
+        gpcc_decode(os.path.join(output_rate,
+                                 basename + '_C.bin'),
+                    os.path.join(output_rate,
+                                 basename + '_C.ply'))
+        coords = read_ply_ascii_geo(os.path.join(output_rate, basename + '_C.ply'))
+        coords = torch.cat((torch.zeros((len(coords),1)).int(), torch.tensor(coords).int()), dim=-1)
+        indices_sort = np.argsort(array2vector(coords, coords.max()+1))
+        coords = coords[indices_sort]
+        coords = coords[:,1:]
+
+        with open(os.path.join(output_rate, basename + '_F.bin'), 'rb') as fin:
+            strings = fin.read()
+        with open(os.path.join(output_rate, basename +'_H.bin'), 'rb') as fin:
+            shape = np.frombuffer(fin.read(4*2), dtype=np.int32)
+            len_min_v = np.frombuffer(fin.read(1), dtype=np.int8)[0]
+            min_v = np.frombuffer(fin.read(4*len_min_v), dtype=np.float32)[0]
+            max_v = np.frombuffer(fin.read(4*len_min_v), dtype=np.float32)[0]
+        with open(os.path.join(output_rate, basename +'_num_points.bin'), 'rb') as fin:
+            num_points = np.frombuffer(fin.read(4*3), dtype=np.int32).tolist()
+            num_points[-1] = int(num_points[-1])# update
+            num_points = [num for num in num_points]
+            
+        feats = self.entropy_model.decompress(strings, min_v, max_v, shape, channels=shape[-1])
+
+        # sparse_xyz = coords
+        label = np.array([label_dict[basename[:len(basename) - len(basename.split('_')[-1]) - 1]]])
+
+        ## process for sparse PCs
+        # sparse_xyz_torch = torch.from_numpy(sparse_xyz)
+        sparse_xyz_torch = coords
+        sparse_features_torch = feats
+        
+        label = torch.from_numpy(label)
+
+        return {
+            "dense_pc_file_dir": self.files[i],
+            "compression_files_dir": [
+                                        os.path.join(output_rate, basename + '_C.bin'), 
+                                        os.path.join(output_rate, basename + '_F.bin'), 
+                                        os.path.join(output_rate, basename + '_H.bin'), 
+                                        os.path.join(output_rate, basename + '_num_points.bin')                     
+                                      ],
+
+            "sparse_coordinates": sparse_xyz_torch.to(torch.float32),
+            "sparse_features": sparse_features_torch.to(torch.float32),
+
+            "label": label,
+            'num_points': num_points,
+        }
+
+    def __len__(self):
+        return len(self.files)
+
+    def __repr__(self):
+        return f"ModelNetH5_voxelize_all(phase={self.phase}, length={len(self)}, transform={self.transform})"
+
+def make_data_loader_latentspace(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=False, 
+                    collate_fn=latentspace_collate_fn):
+    args = {
+        'batch_size': batch_size,
+        'num_workers': num_workers,
+        'collate_fn': collate_fn,
+        'pin_memory': True,
+        'drop_last': False
+    }
+    if repeat:
+        args['sampler'] = InfSampler(dataset, shuffle)
+    else:
+        args['shuffle'] = shuffle
+    loader = torch.utils.data.DataLoader(dataset, **args)
+    return loader
 
 
 # if __name__ == "__main__":

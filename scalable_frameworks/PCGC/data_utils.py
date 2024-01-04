@@ -58,6 +58,29 @@ def write_ply_ascii_geo(filedir, coords):
 
     return
 
+def write_ply_data_with_normals(filename, points, normals):
+    '''
+    write data to ply file.
+    '''
+    points = points.astype("int")
+    normals = normals.astype("float")
+
+    if os.path.exists(filename):
+        os.system('rm '+filename)
+    f = open(filename,'a+')
+    #print('data.shape:',data.shape)
+    f.writelines(['ply\n','format ascii 1.0\n'])
+    f.write('element vertex '+str(points.shape[0])+'\n')
+    f.writelines(['property float x\n','property float y\n','property float z\n'])
+    f.writelines(['property float nx\n','property float ny\n','property float nz\n'])
+    f.write('end_header\n')
+    for point, normal in zip(points, normals):
+        f.writelines([str(point[0]), ' ', str(point[1]), ' ',str(point[2]), ' ',
+                      str(round(normal[0],6)), ' ', str(round(normal[1],6)), ' ',str(round(normal[2],6)), '\n'])
+    f.close() 
+
+    return
+
 ###########################################################################################################
 
 import torch

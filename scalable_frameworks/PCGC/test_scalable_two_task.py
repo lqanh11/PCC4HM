@@ -17,16 +17,27 @@ def parse_args():
 
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/latentspace/finetuning')
 
-    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/test_cls')
+    parser.add_argument("--logdir", 
+                        default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/')
 
-    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_original/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_base/epoch_195.pth')
-    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/best_model/epoch_5.pth')
+    parser.add_argument("--batch_size", 
+                        type=int, 
+                        default=1)
     
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--resolution", type=int, default=128, help="resolution")
+    parser.add_argument("--resolution", 
+                        type=int, 
+                        default=128, 
+                        help="resolution")
+    
+    parser.add_argument("--rate", 
+                        type=str, 
+                        default='r1', 
+                        help="compression rate")
 
-    parser.add_argument("--prefix", type=str, default='20240104_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", 
+                        type=str, 
+                        default='2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/', 
+                        help="prefix of checkpoints/logger, etc.")
  
     
     args = parser.parse_args()
@@ -35,22 +46,33 @@ def parse_args():
 
 class TrainingConfig():
     def __init__(self, args):
+
+        self.logdir = os.path.join(args.logdir, args.prefix)
+        if not os.path.exists(self.logdir): os.makedirs(self.logdir)        
         
-        
-        if args.init_ckpt_original != '':
-            self.init_ckpt_original = args.init_ckpt_original
+        ckpt_original_path = os.path.join(self.logdir, 'src','ckpt_original')
+        if os.path.exists(ckpt_original_path):
+            files = os.listdir(ckpt_original_path)
+            self.init_ckpt_original = os.path.join(ckpt_original_path, files[0])
         else:
             self.init_ckpt_original = ''
         
-        if args.init_ckpt_base != '':
-            self.init_ckpt_base = args.init_ckpt_base
+        ckpt_base_path = os.path.join(self.logdir, 'src', 'ckpt_base')
+        if os.path.exists(ckpt_base_path):
+            files = os.listdir(ckpt_base_path)
+            self.init_ckpt_base = os.path.join(ckpt_base_path, files[0])
         else:
             self.init_ckpt_base = ''
         
-        self.init_ckpt = args.init_ckpt
+        ckpt_enhanment_path = os.path.join(self.logdir, 'best_model')
+        if os.path.exists(ckpt_enhanment_path):
+            files = os.listdir(ckpt_enhanment_path)
+            self.init_ckpt = os.path.join(ckpt_enhanment_path, files[0])
+        else:
+            self.init_ckpt = ''
+       
         self.resolution = args.resolution
-        self.logdir = os.path.join(args.logdir, args.prefix)
-        if not os.path.exists(self.logdir): os.makedirs(self.logdir)
+        
 
 if __name__ == '__main__':
     # log
@@ -76,6 +98,7 @@ if __name__ == '__main__':
 
     # load pre-trained model
     if training_config.init_ckpt_original != '':
+        print('Load original model from ',training_config.init_ckpt_original)
         state_dict = torch.load(training_config.init_ckpt_original)
         model_compression_dict_original = state_dict["model"]
         
@@ -92,6 +115,7 @@ if __name__ == '__main__':
                 processed_dict[k] = model_compression_dict_original[pretrained_key]
     # load base branch
     if training_config.init_ckpt_base != '':
+        print('Load base branch model from ',training_config.init_ckpt_base)
         state_dict = torch.load(training_config.init_ckpt_base)
         model_compression_dict_base = state_dict["model"]
         for k in model_dict.keys(): 
@@ -111,6 +135,7 @@ if __name__ == '__main__':
 
     # load enhanment brach
     if training_config.init_ckpt != '':
+        print('Load enhanment branch model from ',training_config.init_ckpt)
         state_dict = torch.load(training_config.init_ckpt)
         model_compression_dict_enhance = state_dict["model"]
         for k in model_dict.keys(): 
@@ -143,7 +168,7 @@ if __name__ == '__main__':
                                         entropy_model=model.entropy_bottleneck,
                                         phase='test',
                                         resolution=args.resolution, 
-                                        rate='r7')
+                                        rate=args.rate)
     test_dataloader = make_data_loader_latentspace(dataset=test_dataset, 
                                                    batch_size=args.batch_size, 
                                                    shuffle=False, 

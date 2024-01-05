@@ -25,17 +25,21 @@ class Test_Load_All():
                            'mse':[],
                            'mses':[],
                            'ce_cls':[], 
-                           'bpp_e':[], 
                            'bits_b': [],
                            'bits_b_all': [],
+                           'bits_b_likelihood': [],
                            'bits_e': [],
+                           'bits_e_likelihood': [],
+
+                           'bpp_scalable': [],
+                           'bpp_original': [],
                           }
         self.accuracy_set = {'number_correct': [], 'total_number':[]}
 
     def getlogger(self, logdir):
         logger = logging.getLogger(__name__)
         logger.setLevel(level = logging.INFO)
-        handler = logging.FileHandler(os.path.join(logdir, 'log.txt'))
+        handler = logging.FileHandler(os.path.join(logdir, 'log_testing.txt'))
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s: %(message)s', datefmt='%m/%d %H:%M:%S')
         handler.setFormatter(formatter)
@@ -132,7 +136,7 @@ class Test_Load_All():
                     fout.write(np.array(base_min_v, dtype=np.float32).tobytes())
                     fout.write(np.array(base_max_v, dtype=np.float32).tobytes())
 
-                z_q, _ = self.model.get_likelihood_b(z, quantize_mode="symbols")
+                z_q, likelihood_b = self.model.get_likelihood_b(z, quantize_mode="symbols")
 
                 y_q_hat = self.model.latentspacetransform(z_q)
                 
@@ -146,7 +150,18 @@ class Test_Load_All():
                     device=y_b.device)
                 z_r = self.model.analysis_residual(y_r)
                 z_r_q, likelihood_e = self.model.get_likelihood_e(z_r, quantize_mode="symbols")
-                
+
+                enhanment_strings, enhanment_min_v, enhanment_max_v = self.model.entropy_bottleneck_e.compress(z_r.F.cpu())
+                enhanment_shape = z_r.F.shape
+
+                with open('enhanment_F.bin', 'wb') as fout:
+                    fout.write(enhanment_strings)
+                with open('enhanment_H.bin', 'wb') as fout:
+                    fout.write(np.array(enhanment_shape, dtype=np.int32).tobytes())
+                    fout.write(np.array(len(enhanment_min_v), dtype=np.int8).tobytes())
+                    fout.write(np.array(enhanment_min_v, dtype=np.float32).tobytes())
+                    fout.write(np.array(enhanment_max_v, dtype=np.float32).tobytes())
+
                 ## decoder part
                 logits = self.model.classifier(y_q_hat)
                 y_r_hat = self.model.systhesis_residual(z_r_q)
@@ -166,16 +181,34 @@ class Test_Load_All():
                     mse += curr_mse
                     mse_list.append(curr_mse.item())
 
+                bits_b_likelihood = get_bits(likelihood_b)
                 bits_b = np.array([
                                     os.path.getsize(batch["compression_files_dir"][0][0])*8,
                                     os.path.getsize('base_F.bin')*8,
                                     os.path.getsize('base_H.bin')*8,
                                    ])
                 bits_b_avg = bits_b / len(num_points[2])
-                bits_e = get_bits(likelihood_e)
-                bits_e_avg = bits_e / len(num_points[2])
+                bits_b_likelihood_avg = bits_b_likelihood / len(num_points[2])
 
-                bpp_e = bits_e / float(out.__len__())
+                bits_e_likelihood = get_bits(likelihood_e)
+                bits_e = np.array([
+                                    os.path.getsize('enhanment_F.bin')*8,
+                                    os.path.getsize('enhanment_H.bin')*8,
+                                    os.path.getsize(batch["compression_files_dir"][0][3])*8,
+                                   ])
+                bits_e_avg = bits_e / len(num_points[2])
+                bits_e_likelihood_avg = bits_e_likelihood / len(num_points[2])
+
+                bpp_all = (sum(bits_e) + sum(bits_b)) / float(out.__len__())
+
+                ## original bit rate
+                bits_original = np.array([
+                                    os.path.getsize(batch["compression_files_dir"][0][0])*8,
+                                    os.path.getsize(batch["compression_files_dir"][0][1])*8,
+                                    os.path.getsize(batch["compression_files_dir"][0][2])*8,
+                                    os.path.getsize(batch["compression_files_dir"][0][3])*8,
+                                   ])
+                bpp_original = sum(bits_original) / float(out.__len__())
 
                 ## CE classification
                 ce_classification = get_CE_loss(logits, labels.to(device)) 
@@ -194,10 +227,17 @@ class Test_Load_All():
                 self.record_set['mse'].append(mse.item())
                 self.record_set['mses'].append(mse_list)
                 self.record_set['ce_cls'].append(ce_classification.item())
-                self.record_set['bpp_e'].append(bpp_e.item())
+
                 self.record_set['bits_b'].append(sum(bits_b_avg))
                 self.record_set['bits_b_all'].append(bits_b_avg)
-                self.record_set['bits_e'].append(bits_e_avg.item())
+                self.record_set['bits_e'].append(sum(bits_e_avg))
+
+                self.record_set['bits_b_likelihood'].append(bits_b_likelihood_avg.item())
+                self.record_set['bits_e_likelihood'].append(bits_e_likelihood_avg.item())
+
+                self.record_set['bpp_scalable'].append(bpp_all.item())
+                self.record_set['bpp_original'].append(bpp_original.item())
+
                 self.accuracy_set['number_correct'].append(running_corrects_class.item())
                 self.accuracy_set['total_number'].append(labels.size(0))
 

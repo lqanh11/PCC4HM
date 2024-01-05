@@ -19,13 +19,13 @@ LIST_CKPT_BASE=(
 )
 
 LIST_ALPHA=(
-    "20240104_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa05_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa1_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa2_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa4_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa6_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
-    "20240104_encFIXa10_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa05_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa1_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa2_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa4_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa6_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
+    "encFIXa10_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords"
 )
 
 # Get the length of one of the arrays (assuming both arrays have the same length)

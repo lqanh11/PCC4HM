@@ -52,9 +52,9 @@ if __name__ == '__main__':
     parser.add_argument("--filedir", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0117.h5')
     parser.add_argument("--outdir", default='./output/ModelNet/scalable')
     
-    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/20231230_encFIXa1_baseTRANc4_keepcoords_resolution128_alpha320.0_000/best_model/epoch_194.pth')
-    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/20240103_encFIXa10_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/ckpts/epoch_40.pth')
+    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_original/epoch_10.pth')
+    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_base/epoch_195.pth')
+    parser.add_argument("--init_ckpt", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/best_model/epoch_5.pth')
     
     parser.add_argument("--res", type=int, default=128, help='resolution')
     parser.add_argument("--scaling_factor", type=float, default=1.0, help='scaling_factor')

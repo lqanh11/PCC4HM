@@ -146,8 +146,8 @@ if __name__ == '__main__':
                         default="/media/avitech/Data/quocanhle/PointCloud/source_code/scalable_frameworks/PCGC/evaluation/test_ModelNetNet_all.txt")
     parser.add_argument("--outdir", default='./output/ModelNet/scalable')
     
-    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/20231230_encFIXa10_baseTRANc4_keepcoords_resolution128_alpha320.0_000/ckpts/epoch_256.pth')
+    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_original/epoch_10.pth')
+    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/src/ckpt_base/epoch_195.pth')
     
     parser.add_argument("--res", type=int, default=128, help='resolution')
     parser.add_argument("--scaling_factor", type=float, default=1.0, help='scaling_factor')

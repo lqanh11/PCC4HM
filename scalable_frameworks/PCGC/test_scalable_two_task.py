@@ -7,7 +7,7 @@ import MinkowskiEngine as ME
 
 from data_loader_h5 import ModelNet_latentspace, make_data_loader_latentspace
 from pcc_model_scalable import PCCModel_Scalable_ForBest_KeepCoords
-from tester_scalable_base import Test_Load_All
+from tester_scalable_two_tasks import Test_Load_All
 import random
 import shutil
 

@@ -47,7 +47,7 @@ def parse_args():
 
     parser.add_argument("--lr", type=float, default=0.005)
 
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--epoch", type=int, default=51)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")

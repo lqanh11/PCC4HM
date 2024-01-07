@@ -10,6 +10,7 @@ from pcc_model_scalable import PCCModel, PCCModel_Classification_Adapter_KeepCoo
 from trainer_cls_only import Trainer_Cls_Only
 import random
 import shutil
+import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -50,7 +51,7 @@ def parse_args():
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='20231230_encFIXa10_baseTRANc4', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc4', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -58,12 +59,14 @@ def parse_args():
 
 class TrainingConfig():
     def __init__(self, args):
+
+        timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
         
         index = 0
-        logdir_new = '{}_resolution{}_alpha{}_{:03d}'.format(os.path.join(args.logdir, args.prefix), args.resolution, args.alpha, int(index))
+        logdir_new = '{}_resolution{}_alpha{}_{:03d}'.format(os.path.join(args.logdir, timestr + '_' + args.prefix), args.resolution, args.alpha, int(index))
         while os.path.exists(logdir_new):
             index+=1
-            logdir_new = '{}_resolution{}_alpha{}_{:03d}'.format(os.path.join(args.logdir, args.prefix), args.resolution, args.alpha, int(index))
+            logdir_new = '{}_resolution{}_alpha{}_{:03d}'.format(os.path.join(args.logdir, timestr + '_' + args.prefix), args.resolution, args.alpha, int(index))
             
         logdir = logdir_new    
         ckptdir = os.path.join(logdir, 'ckpts')
@@ -234,7 +237,7 @@ if __name__ == '__main__':
     current_patience = 0
 
     for epoch in range(0, args.epoch):
-        if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+        if epoch>5: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
         model_path = trainer.train(train_dataloader, params_to_train)
         # trainer.validation(val_dataloader, 'Validation')
         val_loss = trainer.test(test_dataloader, 'Test')

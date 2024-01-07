@@ -26,17 +26,17 @@ def parse_args():
     
     parser.add_argument("--resolution", 
                         type=int, 
-                        default=128, 
+                        default=256, 
                         help="resolution")
     
     parser.add_argument("--rate", 
                         type=str, 
-                        default='r1', 
+                        default='r2', 
                         help="compression rate")
 
     parser.add_argument("--prefix", 
                         type=str, 
-                        default='2024-01-04_22-17_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution128_alpha1.0_000/', 
+                        default='2024-01-06_04-27_encFIXa05_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution256_alpha1.0_000', 
                         help="prefix of checkpoints/logger, etc.")
  
     

@@ -466,8 +466,8 @@ class MinkoPointNet_Backbone(ME.MinkowskiNetwork):
         x = self.conv5(x)
         x = self.pool(x)
         x1 = self.global_max_pool(x)
-        x2 = self.global_avg_pool(x)
-        return ME.cat(x1, x2)
+        # x2 = self.global_avg_pool(x)
+        return torch.unsqueeze(x1.F,-1) # C x B
 
 class MinkoPointNet_MLP(ME.MinkowskiNetwork):
     def __init__(

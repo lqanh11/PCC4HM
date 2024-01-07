@@ -742,17 +742,77 @@ class PCCModel_Classification_Split(torch.nn.Module):
                 'ground_truth_list':ground_truth_list,
                 'nums_list': nums_list
                 }
+    
+from torch import nn, Tensor
+GAIN = 10.0
 
+class Reshape(nn.Module):
+    def __init__(self, shape):
+        super().__init__()
+        self.shape = shape
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(shape={self.shape})"
+
+    def forward(self, x):
+        output_shape = (x.shape[0], *self.shape)
+        try:
+            return x.reshape(output_shape)
+        except RuntimeError as e:
+            e.args += (f"Cannot reshape input {tuple(x.shape)} to {output_shape}",)
+            raise e
+
+class Gain(nn.Module):
+    def __init__(self, shape=None, factor: float = 1.0):
+        super().__init__()
+        self.factor = factor
+        self.gain = nn.Parameter(torch.ones(shape))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.factor * self.gain * x
+    
+def pointnet_classification_backend(num_channels=[1024, 512, 256, 10]):
+    num_classes = num_channels[-1]
+    return nn.Sequential(
+        *[
+            x
+            for i, ch_in, ch_out in zip(
+                range(len(num_channels) - 2),
+                num_channels[:-2],
+                num_channels[1:-1],
+            )
+            for x in [
+                nn.Conv1d(ch_in, ch_out, 1),
+                nn.BatchNorm1d(ch_out),
+                nn.ReLU(inplace=True),
+            ]
+        ],
+        nn.Dropout(0.3),
+        nn.Conv1d(num_channels[-2], num_channels[-1], 1),
+        Reshape((num_classes,)),
+    )
+    
 class PCCModel_Classification_Compress(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = Encoder(channels=[1,16,32,64,32,8])
         self.decoder = Decoder(channels=[8,64,32,16])
         self.entropy_bottleneck = EntropyBottleneck(8)
-        self.entropy_bottleneck_cls = EntropyBottleneck(2048)
-        self.classifier_backbone = MinkoPointNet_Backbone(in_channel=8, out_channel=10, embedding_channel=1024)
-        self.classifier_mlp = MinkoPointNet_MLP(in_channel=8, out_channel=10, embedding_channel=1024)
-
+        self.entropy_bottleneck_cls = EntropyBottleneck(1024)
+        
+        self.classifier_backbone = nn.Sequential(
+            MinkoPointNet_Backbone(in_channel=8, out_channel=10, embedding_channel=1024),
+            Gain((1024, 1), GAIN),
+        )
+        
+        self.classifier_mlp = nn.Sequential(
+            nn.Sequential(
+                nn.Identity(),  # For compatibility with previous checkpoints.
+                Gain((1024, 1), GAIN),
+            ),
+            pointnet_classification_backend(),
+        )
+    
     def get_likelihood(self, data, quantize_mode):
         data_F, likelihood = self.entropy_bottleneck(data.F,
             quantize_mode=quantize_mode)
@@ -765,17 +825,12 @@ class PCCModel_Classification_Compress(torch.nn.Module):
         return data_Q, likelihood
     
     def get_likelihood_b(self, data, quantize_mode):
-        data_F, likelihood = self.entropy_bottleneck_cls(data.F,
+        data_Q, likelihood = self.entropy_bottleneck_cls(data,
             quantize_mode=quantize_mode)
-        data_Q = ME.SparseTensor(
-            features=data_F, 
-            coordinate_map_key=data.coordinate_map_key, 
-            coordinate_manager=data.coordinate_manager, 
-            device=data.device)
 
         return data_Q, likelihood
 
-    def forward(self, x, x_fix_pts, training=True):
+    def forward(self, x, training=True):
         # Encoder
         y_list = self.encoder(x)
         y = y_list[0]
@@ -784,27 +839,21 @@ class PCCModel_Classification_Compress(torch.nn.Module):
             for ground_truth in ground_truth_list]
 
         # Quantizer & Entropy Model
-        y_q, likelihood = self.get_likelihood(y, 
-            quantize_mode="noise" if training else "symbols")
+        y_q, _ = self.get_likelihood(y, 
+            quantize_mode="symbols")
             
-        
         # classification
         out_cls_backbone = self.classifier_backbone(y_q)
 
-        out_cls_backbone_q, likelihood_b = self.get_likelihood_b(out_cls_backbone,
+        out_cls_backbone_q, likelihood_b = self.get_likelihood_b(torch.squeeze(out_cls_backbone),
                          quantize_mode="noise" if training else "symbols")
 
-        logits = self.classifier_mlp(out_cls_backbone_q)
+        logits = self.classifier_mlp(torch.unsqueeze(out_cls_backbone_q,-1))
 
-        # Decoder
-        out_cls_list, out = self.decoder(y_q, nums_list, ground_truth_list, training)
-
-        return {'out':out,
+        return {
                 'logits': logits,
-                'out_cls_list':out_cls_list,
                 'prior':y_q, 
-                'likelihood':likelihood_b, 
-                'ground_truth_list':ground_truth_list,
+                'likelihood_b':likelihood_b, 
                 'nums_list': nums_list
                 }
 

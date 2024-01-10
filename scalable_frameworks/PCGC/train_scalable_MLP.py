@@ -6,8 +6,8 @@ import torch
 import MinkowskiEngine as ME
 
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
-from pcc_model_scalable import PCCModel, PCCModel_Classification_Compress
-from trainer_cls_MLP import Trainer_Cls_Only
+from pcc_model_scalable import PCCModel_Classification_MLP_Scalable_Full
+from trainer_scalable_MLP import Trainer_Load_All_MLP
 import random
 import shutil
 import datetime
@@ -18,14 +18,14 @@ def parse_args():
 
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
     
-    parser.add_argument("--alpha", type=float, default=16000., help="weights for distoration.")
+    parser.add_argument("--alpha", type=float, default=10., help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only')
+    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
     
     parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='')
+    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/2024-01-10_11-46_encFIXa10_baseTRANc4_MLP_scalable_resolution128_alpha16000.0_000/ckpts/epoch_132.pth')
     parser.add_argument("--init_ckpt", default='')
 
     parser.add_argument('--params_to_train', 
@@ -35,23 +35,23 @@ def parse_args():
                                 #    'encoder', # original 
                                 #    'decoder', # original
                                 #    'entropy_bottleneck', # original
-                                    'entropy_bottleneck_cls', # base
-                                    'classifier_backbone', # base
-                                    # 'latentspacetransform',
-                                    'classifier_mlp', # base
-                                #    'entropy_bottleneck_e', # enhancemet
-                                #    'transpose_adapter', # enhancemet
-                                #    'analysis_residual', # enhancemet
-                                #    'systhesis_residual' # enhancemet
+                                    # 'entropy_bottleneck_b', # base
+                                    # 'classifier_backbone', # base
+                                    # 'classifier_mlp' # base
+                                   'reconstruction_gain', # enhancemet
+                                   'reconstruction_backbone', # enhancemet
+                                   'analysis_residual', # enhancemet
+                                   'systhesis_residual', # enhancemet
+                                   'entropy_bottleneck_e' # enhancemet
                                             ])
 
-    parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--lr", type=float, default=0.005)
 
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epoch", type=int, default=1000)
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--epoch", type=int, default=51)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRAN_mlp', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc4_MLP_scalable_full', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -59,9 +59,8 @@ def parse_args():
 
 class TrainingConfig():
     def __init__(self, args):
-
-        timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
         
+        timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
         index = 0
         logdir_new = '{}_resolution{}_alpha{}_{:03d}'.format(os.path.join(args.logdir, timestr + '_' + args.prefix), args.resolution, args.alpha, int(index))
         while os.path.exists(logdir_new):
@@ -78,8 +77,8 @@ class TrainingConfig():
         ## copy file to log dir
         shutil.copy('data_loader_h5.py' , str(src_dir))
         shutil.copy('pcc_model_scalable.py', str(src_dir))
-        shutil.copy('train_cls_MLP.py', str(src_dir))
-        shutil.copy('trainer_cls_MLP.py', str(src_dir))
+        shutil.copy('train_scalable.py', str(src_dir))
+        shutil.copy('trainer_scalable.py', str(src_dir))
         shutil.copy('loss.py', str(src_dir))
         shutil.copy('data_utils.py', str(src_dir))
         shutil.copy('autoencoder.py', str(src_dir))
@@ -142,7 +141,7 @@ if __name__ == '__main__':
     training_config = TrainingConfig(args)
     
     # model
-    model = PCCModel_Classification_Compress()
+    model = PCCModel_Classification_MLP_Scalable_Full()
     model_dict = model.state_dict() 
     processed_dict = {}
 
@@ -156,9 +155,9 @@ if __name__ == '__main__':
             if("encoder" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_original[pretrained_key] 
-            # if("decoder" in decomposed_key):
-            #     pretrained_key = ".".join(decomposed_key[:])
-            #     processed_dict[k] = model_compression_dict_original[pretrained_key]
+            if("decoder" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_original[pretrained_key]
             if("entropy_bottleneck" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_original[pretrained_key]
@@ -168,13 +167,19 @@ if __name__ == '__main__':
         model_compression_dict_base = state_dict["model"]
         for k in model_dict.keys(): 
             decomposed_key = k.split(".")
-            if("entropy_bottleneck_cls" in decomposed_key):
+            if("entropy_bottleneck_b" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("classifier_backbone" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
             if("classifier_mlp" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_base[pretrained_key]
+            if("reconstruction_gain" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_base[pretrained_key]
+            if("reconstruction_backbone" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
 
@@ -188,7 +193,10 @@ if __name__ == '__main__':
             if("entropy_bottleneck_e" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_enhance[pretrained_key]
-            if("transpose_adapter" in decomposed_key):
+            if("reconstruction_gain" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_enhance[pretrained_key]
+            if("reconstruction_backbone" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_enhance[pretrained_key]
             if("analysis_residual" in decomposed_key):
@@ -206,10 +214,10 @@ if __name__ == '__main__':
     
 
     # trainer    
-    trainer = Trainer_Cls_Only(config=training_config, model=model)
-    if args.init_ckpt != '':
-        print(f'Load CKPT from {args.init_ckpt}')
-        trainer.load_state_dict()
+    trainer = Trainer_Load_All_MLP(config=training_config, model=model)
+    # if args.init_ckpt != '':
+    #     print(f'Load CKPT from {args.init_ckpt}')
+    #     trainer.load_state_dict()
 
     # dataset
     filedirs = get_file_dirs(args.root_path)
@@ -233,8 +241,11 @@ if __name__ == '__main__':
     best_val_loss = float('inf')
     current_patience = 0
 
+
+    val_loss = trainer.test(test_dataloader, 'Test')
+
     for epoch in range(0, args.epoch):
-        # if epoch>3: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+        if epoch>30: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
         model_path = trainer.train(train_dataloader, params_to_train)
         # trainer.validation(val_dataloader, 'Validation')
         val_loss = trainer.test(test_dataloader, 'Test')

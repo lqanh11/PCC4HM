@@ -5,8 +5,13 @@ import torch
 import MinkowskiEngine as ME
 import torch.nn.functional as F
 import sklearn.metrics as metrics
+from time import time
+import pandas as pd
 
+from evaluation.pc_error import pc_error
 from loss import get_bce, get_CE_loss, get_mse, get_bits, get_metrics
+from data_utils import write_ply_ascii_geo
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 from tensorboardX import SummaryWriter
 
@@ -16,6 +21,10 @@ class Test_Load_All():
         self.config = config
         self.logger = self.getlogger(config.logdir)
         self.writer = SummaryWriter(log_dir=config.logdir)
+        
+        self.outdir = config.outdir
+        self.rate = config.rate
+        self.resolution = config.resolution
 
         self.model = model.to(device)
         # self.logger.info(model)
@@ -112,8 +121,18 @@ class Test_Load_All():
 
             labels_list, preds_list = [], []
             self.model.eval()
+
+            output_resolution = os.path.join(self.outdir, f'{self.resolution}')
+            save_results_path = os.path.join(output_resolution, self.rate)
+            if not os.path.exists(save_results_path): os.makedirs(save_results_path)
+
             for idx, batch in enumerate(tqdm(dataloader)):
+
+                pc_filedir = batch["dense_pc_file_dir"][0]
+                basename = os.path.split(pc_filedir)[-1].split('.')[0]
+                filename = os.path.join(save_results_path, basename)
                 
+                start = time()
                 # data 
                 y_q = ME.SparseTensor(features=batch["sparse_features"], 
                                       coordinates=batch["sparse_coordinates"]*8, 
@@ -128,17 +147,15 @@ class Test_Load_All():
 
                 base_strings, base_min_v, base_max_v = self.model.entropy_bottleneck_b.compress(z.F)
                 base_shape = z.F.shape
-                with open('base_F.bin', 'wb') as fout:
+                with open(filename+'_base_F.bin', 'wb') as fout:
                     fout.write(base_strings)
-                with open('base_H.bin', 'wb') as fout:
+                with open(filename+'_base_H.bin', 'wb') as fout:
                     fout.write(np.array(base_shape, dtype=np.int32).tobytes())
                     fout.write(np.array(len(base_min_v), dtype=np.int8).tobytes())
                     fout.write(np.array(base_min_v, dtype=np.float32).tobytes())
                     fout.write(np.array(base_max_v, dtype=np.float32).tobytes())
 
-                z_q, likelihood_b = self.model.get_likelihood_b(z, quantize_mode="symbols")
-
-                y_q_hat = self.model.latentspacetransform(z_q)
+                z_q, likelihood_b = self.model.get_likelihood_b(z, quantize_mode="symbols") 
                 
                 y_b = self.model.transpose_adapter(z_q)
 
@@ -154,15 +171,20 @@ class Test_Load_All():
                 enhanment_strings, enhanment_min_v, enhanment_max_v = self.model.entropy_bottleneck_e.compress(z_r.F.cpu())
                 enhanment_shape = z_r.F.shape
 
-                with open('enhanment_F.bin', 'wb') as fout:
+                with open(filename+'_enhanment_F.bin', 'wb') as fout:
                     fout.write(enhanment_strings)
-                with open('enhanment_H.bin', 'wb') as fout:
+                with open(filename+'_enhanment_H.bin', 'wb') as fout:
                     fout.write(np.array(enhanment_shape, dtype=np.int32).tobytes())
                     fout.write(np.array(len(enhanment_min_v), dtype=np.int8).tobytes())
                     fout.write(np.array(enhanment_min_v, dtype=np.float32).tobytes())
                     fout.write(np.array(enhanment_max_v, dtype=np.float32).tobytes())
 
+                time_enc = round(time() - start,3)
+
                 ## decoder part
+                start = time()
+
+                y_q_hat = self.model.latentspacetransform(z_q)
                 logits = self.model.classifier(y_q_hat)
                 y_r_hat = self.model.systhesis_residual(z_r_q)
                 y_scalable_features = y_r_hat.F + y_b.F
@@ -173,7 +195,17 @@ class Test_Load_All():
                     device=y_r_hat.device)
                 
                 # # Decoder
-                out_cls_list, out = self.model.decoder(y_scalable, num_points, [None]*3, False)
+                out_cls_list, x_dec = self.model.decoder(y_scalable, num_points, [None]*3, False)
+
+                time_dec = round(time() - start,3)
+
+
+                decode_file_path = os.path.join(save_results_path, basename +'_dec.ply')
+
+                write_ply_ascii_geo(decode_file_path, 
+                            x_dec.C.detach().cpu().numpy()[:,1:])
+                
+                
 
                 mse, mse_list = 0, []
                 for out_cls, ground_truth in zip([y_scalable], [y_q]):
@@ -184,22 +216,22 @@ class Test_Load_All():
                 bits_b_likelihood = get_bits(likelihood_b)
                 bits_b = np.array([
                                     os.path.getsize(batch["compression_files_dir"][0][0])*8,
-                                    os.path.getsize('base_F.bin')*8,
-                                    os.path.getsize('base_H.bin')*8,
+                                    os.path.getsize(filename+'_base_F.bin')*8,
+                                    os.path.getsize(filename+'_base_H.bin')*8,
                                    ])
                 bits_b_avg = bits_b / len(num_points[2])
                 bits_b_likelihood_avg = bits_b_likelihood / len(num_points[2])
 
                 bits_e_likelihood = get_bits(likelihood_e)
                 bits_e = np.array([
-                                    os.path.getsize('enhanment_F.bin')*8,
-                                    os.path.getsize('enhanment_H.bin')*8,
+                                    os.path.getsize(filename+'_enhanment_F.bin')*8,
+                                    os.path.getsize(filename+'_enhanment_H.bin')*8,
                                     os.path.getsize(batch["compression_files_dir"][0][3])*8,
                                    ])
                 bits_e_avg = bits_e / len(num_points[2])
                 bits_e_likelihood_avg = bits_e_likelihood / len(num_points[2])
 
-                bpp_all = (sum(bits_e) + sum(bits_b)) / float(out.__len__())
+                bpp_all = (sum(bits_e) + sum(bits_b)) / float(x_dec.__len__())
 
                 ## original bit rate
                 bits_original = np.array([
@@ -208,7 +240,7 @@ class Test_Load_All():
                                     os.path.getsize(batch["compression_files_dir"][0][2])*8,
                                     os.path.getsize(batch["compression_files_dir"][0][3])*8,
                                    ])
-                bpp_original = sum(bits_original) / float(out.__len__())
+                bpp_original = sum(bits_original) / float(x_dec.__len__())
 
                 ## CE classification
                 ce_classification = get_CE_loss(logits, labels.to(device)) 
@@ -240,6 +272,34 @@ class Test_Load_All():
 
                 self.accuracy_set['number_correct'].append(running_corrects_class.item())
                 self.accuracy_set['total_number'].append(labels.size(0))
+
+
+                results = {}
+                results["num_points(input)"] = x_dec.__len__()
+                results["num_points(output)"] = x_dec.__len__()
+                results["resolution"] = self.resolution
+                results["bits"] = (sum(bits_e) + sum(bits_b)).round(3)
+                results["bpp"] = bpp_all.round(3)
+                results["bits(base)"] = sum(bits_b_avg)
+                results["bits(enhanment)"] = sum(bits_e_avg)
+                results["time(enc)"] = time_enc
+                results["time(dec)"] = time_dec
+
+                df_results = pd.DataFrame([results])
+
+                csv_name = os.path.join(save_results_path, basename +'.csv')
+                df_results.to_csv(csv_name, index=False)
+                print('Wrile results to: \t', csv_name)
+
+
+                pc_error_metrics = pc_error(pc_filedir, decode_file_path, 
+                                    res=self.resolution, normal=True, show=False)
+                
+                # save results
+                results = pc_error_metrics
+                csv_name = os.path.join(save_results_path, basename +'_distortion.csv')
+                results.to_csv(csv_name, index=False)
+                print('Wrile results to: \t', csv_name)
 
                 torch.cuda.empty_cache()# empty cache.
 

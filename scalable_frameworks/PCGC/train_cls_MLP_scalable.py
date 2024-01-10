@@ -6,8 +6,8 @@ import torch
 import MinkowskiEngine as ME
 
 from data_loader_h5 import PCDataset_LoadAll, make_data_loader
-from pcc_model_scalable import PCCModel, PCCModel_Classification_Compress
-from trainer_cls_MLP import Trainer_Cls_Only
+from pcc_model_scalable import PCCModel, PCCModel_Classification_MLP_Scalable_Base
+from trainer_cls_MLP_scalable import Trainer_cls_MLP_scalable
 import random
 import shutil
 import datetime
@@ -35,12 +35,12 @@ def parse_args():
                                 #    'encoder', # original 
                                 #    'decoder', # original
                                 #    'entropy_bottleneck', # original
-                                    'entropy_bottleneck_cls', # base
+                                    'entropy_bottleneck_b', # base
                                     'classifier_backbone', # base
-                                    # 'latentspacetransform',
-                                    'classifier_mlp', # base
+                                    'classifier_mlp',
+                                    'reconstruction_gain', # base
                                 #    'entropy_bottleneck_e', # enhancemet
-                                #    'transpose_adapter', # enhancemet
+                                   'reconstruction_backbone', # enhancemet
                                 #    'analysis_residual', # enhancemet
                                 #    'systhesis_residual' # enhancemet
                                             ])
@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRAN_mlp', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc4_MLP_scalable', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -78,8 +78,8 @@ class TrainingConfig():
         ## copy file to log dir
         shutil.copy('data_loader_h5.py' , str(src_dir))
         shutil.copy('pcc_model_scalable.py', str(src_dir))
-        shutil.copy('train_cls_MLP.py', str(src_dir))
-        shutil.copy('trainer_cls_MLP.py', str(src_dir))
+        shutil.copy('train_cls_MLP_scalable.py', str(src_dir))
+        shutil.copy('trainer_cls_MLP_scalable.py', str(src_dir))
         shutil.copy('loss.py', str(src_dir))
         shutil.copy('data_utils.py', str(src_dir))
         shutil.copy('autoencoder.py', str(src_dir))
@@ -142,7 +142,7 @@ if __name__ == '__main__':
     training_config = TrainingConfig(args)
     
     # model
-    model = PCCModel_Classification_Compress()
+    model = PCCModel_Classification_MLP_Scalable_Base()
     model_dict = model.state_dict() 
     processed_dict = {}
 
@@ -168,13 +168,16 @@ if __name__ == '__main__':
         model_compression_dict_base = state_dict["model"]
         for k in model_dict.keys(): 
             decomposed_key = k.split(".")
-            if("entropy_bottleneck_cls" in decomposed_key):
+            if("entropy_bottleneck_b" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
-            if("classifier_backbone" in decomposed_key):
+            if("adapter" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
-            if("classifier_mlp" in decomposed_key):
+            if("latentspacetransform" in decomposed_key):
+                pretrained_key = ".".join(decomposed_key[:])
+                processed_dict[k] = model_compression_dict_base[pretrained_key]
+            if("classifier" in decomposed_key):
                 pretrained_key = ".".join(decomposed_key[:])
                 processed_dict[k] = model_compression_dict_base[pretrained_key]
 
@@ -206,7 +209,7 @@ if __name__ == '__main__':
     
 
     # trainer    
-    trainer = Trainer_Cls_Only(config=training_config, model=model)
+    trainer = Trainer_cls_MLP_scalable(config=training_config, model=model)
     if args.init_ckpt != '':
         print(f'Load CKPT from {args.init_ckpt}')
         trainer.load_state_dict()
@@ -223,7 +226,7 @@ if __name__ == '__main__':
     test_dataset = PCDataset_LoadAll(filedirs['Test'], resolution=args.resolution, num_pts=1024)
     test_dataloader = make_data_loader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, repeat=False, num_workers=4)
 
-
+    
     # Frezee layers in model
     # all
     params_to_train = args.params_to_train
@@ -234,21 +237,21 @@ if __name__ == '__main__':
     current_patience = 0
 
     for epoch in range(0, args.epoch):
-        # if epoch>3: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+        if epoch>5: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
         model_path = trainer.train(train_dataloader, params_to_train)
         # trainer.validation(val_dataloader, 'Validation')
         val_loss = trainer.test(test_dataloader, 'Test')
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_path = model_path
-            current_patience = 0
-        else:
-            current_patience += 1
+        # if val_loss < best_val_loss:
+        #     best_val_loss = val_loss
+        #     best_model_path = model_path
+        #     current_patience = 0
+        # else:
+        #     current_patience += 1
         
-        if current_patience >= patience:
-            print(f"Early stopping after {epoch + 1} epochs.")
-            os.makedirs(training_config.save_best_model_path, exist_ok=True)
-            shutil.copy(best_model_path , str(training_config.save_best_model_path))
-            break
+        # if current_patience >= patience:
+        #     print(f"Early stopping after {epoch + 1} epochs.")
+        #     os.makedirs(training_config.save_best_model_path, exist_ok=True)
+        #     shutil.copy(best_model_path , str(training_config.save_best_model_path))
+        #     break
     

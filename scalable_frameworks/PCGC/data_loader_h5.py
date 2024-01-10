@@ -280,6 +280,59 @@ def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=
 
     return loader
 
+list_test = [
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0117.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0128.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0130.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0126.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bathtub_0147.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bed_0590.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bed_0550.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bed_0534.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bed_0605.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/bed_0603.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/chair_0927.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/chair_0896.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/chair_0989.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/chair_0934.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/chair_0936.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/desk_0205.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/desk_0283.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/desk_0258.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/desk_0277.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/desk_0217.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/dresser_0254.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/dresser_0244.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/dresser_0206.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/dresser_0252.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/dresser_0219.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0497.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0481.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0526.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0556.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0512.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/night_stand_0280.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/night_stand_0247.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/night_stand_0226.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/night_stand_0202.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/night_stand_0285.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/sofa_0696.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/sofa_0765.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/sofa_0735.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/sofa_0689.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/sofa_0733.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/table_0472.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/table_0466.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/table_0443.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/table_0451.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/table_0446.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/toilet_0429.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/toilet_0404.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/toilet_0443.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/toilet_0375.h5',
+    '/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/toilet_0360.h5',
+]
+
 class ModelNet_latentspace(Dataset):
     def __init__(
         self,
@@ -297,7 +350,8 @@ class ModelNet_latentspace(Dataset):
         self.phase = phase
         self.resolution = resolution
         self.rate = rate
-        self.files = glob.glob(os.path.join(data_root, phase, f'{self.resolution}', 'original', "*.ply"))
+        # self.files = glob.glob(os.path.join(data_root, phase, f'{self.resolution}', 'original', "*.ply"))
+        self.files = list_test
         self.entropy_model = entropy_model.cpu()
 
     def __getitem__(self, i: int) -> dict:
@@ -316,6 +370,8 @@ class ModelNet_latentspace(Dataset):
 
         ## process latent space
         basename = os.path.split(self.files[i])[-1].split('.')[0]
+
+        ply_file_dir = os.path.join(self.data_root, self.phase, f'{self.resolution}', 'original', basename + ".ply")
         
         output_resolution = os.path.join(self.data_root, self.phase, f'{self.resolution}')
         output_rate = os.path.join(output_resolution, self.rate)
@@ -355,7 +411,8 @@ class ModelNet_latentspace(Dataset):
         label = torch.from_numpy(label)
 
         return {
-            "dense_pc_file_dir": self.files[i],
+            # "dense_pc_file_dir": self.files[i],
+            "dense_pc_file_dir": ply_file_dir,
             "compression_files_dir": [
                                         os.path.join(output_rate, basename + '_C.bin'), 
                                         os.path.join(output_rate, basename + '_F.bin'), 

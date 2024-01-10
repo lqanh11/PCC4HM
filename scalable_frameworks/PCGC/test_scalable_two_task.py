@@ -17,6 +17,10 @@ def parse_args():
 
     parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/latentspace/finetuning')
 
+    
+    parser.add_argument("--outdir",
+                        default="/media/avitech/Data/quocanhle/PointCloud/source_code/scalable_frameworks/PCGC/evaluation/output/ModelNet/scalable_two_tasks")
+    
     parser.add_argument("--logdir", 
                         default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/')
 
@@ -31,12 +35,12 @@ def parse_args():
     
     parser.add_argument("--rate", 
                         type=str, 
-                        default='r2', 
+                        default='r1', 
                         help="compression rate")
 
     parser.add_argument("--prefix", 
                         type=str, 
-                        default='2024-01-06_04-27_encFIXa05_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution256_alpha1.0_000', 
+                        default='2024-01-05_16-41_encFIXa025_baseFIXc4_enhaTRAINc8b3RB_Quantize_MSE_KeepCoords_resolution64_alpha1.0_000', 
                         help="prefix of checkpoints/logger, etc.")
  
     
@@ -72,6 +76,8 @@ class TrainingConfig():
             self.init_ckpt = ''
        
         self.resolution = args.resolution
+        self.outdir = args.outdir
+        self.rate = args.rate
         
 
 if __name__ == '__main__':

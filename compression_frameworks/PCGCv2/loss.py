@@ -30,7 +30,7 @@ def get_metrics(data, groud_truth):
     mask_pred = istopk(data, nums, rho=1.0)
     metrics = get_cls_metrics(mask_pred, mask_real)
 
-    return metrics[0]
+    return metrics
 
 def get_metrics_1scale(data, groud_truth):
     mask_real = isin(data.C, groud_truth.C)

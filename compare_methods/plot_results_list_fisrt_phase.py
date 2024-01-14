@@ -24,9 +24,9 @@ if __name__ == '__main__':
                         default="scalable_frameworks/PCGC/evaluation/ModelNet_test_list.txt")
     
     parser.add_argument("--outdir_scalable_2_tasks", 
-                        # default="")
+                        default="")
                         # default="scalable_frameworks/PCGC/evaluation/output/ModelNet/scalable_two_tasks")
-                        default="scalable_frameworks/PCGC/evaluation/output/ModelNet/scalable_full")
+                        # default="scalable_frameworks/PCGC/evaluation/output/ModelNet/scalable_full")
 
     parser.add_argument("--outdir_pcgcv2", 
                         default="compression_frameworks/PCGC/PCGCv2/evaluation/ModelNet/pretrained")
@@ -48,7 +48,7 @@ if __name__ == '__main__':
                         default="")
     
     parser.add_argument("--resolution",
-                        default="128")
+                        default="512")
 
     args = parser.parse_args()
 

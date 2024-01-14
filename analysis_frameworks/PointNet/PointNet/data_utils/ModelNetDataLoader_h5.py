@@ -20,9 +20,9 @@ def load_h5_file(file_path, num_point):
 
     return xyz
 
-def load_h5_file_res(file_path, num_point, resolution):
+def load_h5_file_res(file_path, resolution):
     with h5py.File(file_path) as f:
-        xyz = f[f"points_{num_point}_{resolution}"][:].astype("float32")
+        xyz = f[f"points_{resolution}"][:].astype("float32")
 
     return xyz
 
@@ -195,7 +195,7 @@ class ModelNetDataLoader_h5_all(Dataset):
                     fn = self.datapath[index]
                     cls = self.classes[self.datapath[index][0]]
                     cls = np.array([cls]).astype(np.int32)
-                    point_set = load_h5_file_res(fn[1], self.npoints, self.resolution).astype(np.float32)
+                    point_set = load_h5_file_res(fn[1], self.resolution).astype(np.float32)
 
                     if self.uniform:
                         point_set = farthest_point_sample(point_set, self.npoints)

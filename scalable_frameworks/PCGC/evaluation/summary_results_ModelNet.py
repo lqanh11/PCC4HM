@@ -7,8 +7,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--filedir", default='/media/avitech-pc2/Student/quocanhle/Point_Cloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/test/monitor_0512.h5')
-    parser.add_argument("--outdir", default='./output/ModelNet/scalable_two_tasks')
-    parser.add_argument("--res", type=int, default=64, help='resolution')
+    parser.add_argument("--outdir", default='./output/ModelNet/pretrained')
+    parser.add_argument("--res", type=int, default=1024, help='resolution')
     parser.add_argument('--ckptdir_list',
                     type=str, nargs='*', default=[
                                                     '/media/avitech-pc2/Student/quocanhle/Point_Cloud/compression_frameworks/pretrained_models/PCGCv2/ckpts/r1_0.025bpp.pth',
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         filename = os.path.join(save_results_path, basename)
         
         ## Coding results
-        csv_coding_name = os.path.join(save_results_path, basename +'.csv')
+        csv_coding_name = os.path.join(save_results_path, basename +'_general.csv')
         coding_results = pd.read_csv(csv_coding_name)
         
         ## Distortion results

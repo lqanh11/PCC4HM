@@ -16,16 +16,16 @@ def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--root_path", default='/media/avitech/Data/quocanhle/PointCloud/dataset/modelnet10/pc_resample_format_h5/all_resolution/')
+    parser.add_argument("--root_path", default='/media/avitech/QuocAnh_1TB/Point_Cloud/dataset/modelnet10/pc_resample_format_h5/all_resolution')
     
     parser.add_argument("--alpha", type=float, default=.5, help="weights for distoration.")
     parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--logdir", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
+    parser.add_argument("--logdir", default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
     
-    parser.add_argument("--init_ckpt_original", default='/media/avitech/Data/quocanhle/PointCloud/compression_frameworks/PCGC/PCGCv2/logs_ModelNet10/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
-    parser.add_argument("--init_ckpt_base", default='/media/avitech/Data/quocanhle/PointCloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/2024-01-10_11-46_encFIXa10_baseTRANc4_MLP_scalable_resolution128_alpha16000.0_000/ckpts/epoch_132.pth')
+    parser.add_argument("--init_ckpt_original", default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGCv2/modelnet_dense_full_reconstruction_with_pretrained_alpha_1.0_000/ckpts/epoch_10.pth')
+    parser.add_argument("--init_ckpt_base", default='/run/user/1000/gvfs/smb-share:server=avitech7.local,share=quocanhle/ScalabaleFraneworks/Logs/cls_only/2024-01-13_04-32_encFIXa05_baseTRANc_mlp_resolution128_alpha16000.0_000/ckpts/model.pth')
     parser.add_argument("--init_ckpt", default='')
 
     parser.add_argument('--params_to_train', 
@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument("--epoch", type=int, default=51)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=128, help="resolution")
-    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc4_MLP_scalable_full', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--prefix", type=str, default='encFIXa05_baseTRANc4_MLP_scalable_full', help="prefix of checkpoints/logger, etc.")
  
     args = parser.parse_args()
 
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     val_loss = trainer.test(test_dataloader, 'Test')
 
     for epoch in range(0, args.epoch):
-        if epoch>30: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+        if epoch>0: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
         model_path = trainer.train(train_dataloader, params_to_train)
         # trainer.validation(val_dataloader, 'Validation')
         val_loss = trainer.test(test_dataloader, 'Test')
@@ -259,4 +259,35 @@ if __name__ == '__main__':
             os.makedirs(training_config.save_best_model_path, exist_ok=True)
             shutil.copy(best_model_path , str(training_config.save_best_model_path))
             break
-    
+
+    # best_epoch = 0
+
+    # for epoch in range(0, args.epoch):
+    #     if epoch>5: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+    #     model_statedict = trainer.train(train_dataloader, params_to_train)
+    #     val_loss = trainer.test(test_dataloader, 'Test')
+
+    #     os.makedirs(training_config.save_best_model_path, exist_ok=True)
+    #     torch.save({'model': model_statedict}, 
+    #                         os.path.join(training_config.ckptdir, 'model.pth'))
+
+    #     if epoch > 30:
+    #         if val_loss < best_val_loss:
+    #             best_epoch = epoch
+    #             best_val_loss = val_loss
+    #             best_model_statedict = model_statedict
+    #             current_patience = 0
+    #         else:
+    #             current_patience += 1
+            
+    #         if current_patience >= patience:
+    #             print(f"Early stopping after {epoch + 1} epochs.")
+    #             torch.save({'model': best_model_statedict}, 
+    #                                 os.path.join(training_config.save_best_model_path, f'best_model.pth'))
+    #             break
+    #         elif epoch == (args.epoch - 1):
+    #             best_model_statedict = model_statedict
+    #             torch.save({'model': best_model_statedict}, 
+    #                                 os.path.join(training_config.save_best_model_path, f'best_model.pth'))
+
+     

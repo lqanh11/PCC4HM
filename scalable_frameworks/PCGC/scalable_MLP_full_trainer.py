@@ -297,6 +297,7 @@ class Trainer():
 
         with torch.no_grad(): self.record(main_tag='Train', global_step=self.epoch*len(dataloader)+batch_step)
         model_path = self.save_model()
+        # model_statedict = self.model.state_dict()
         self.epoch += 1
 
         return model_path

@@ -6,8 +6,8 @@ import numpy as np
 plt.rcParams["font.family"] = "Times New Roman"
 # plt.rc('text', usetex = True)
 
-workspace_path = '/media/avitech/QuocAnh_1TB/Point_Cloud/'
-workspace_path_13 = '/media/avitech/QuocAnh_1TB/Point_Cloud/source_code'
+workspace_path = '/media/avitech7/QuocAnh_1TB/Point_Cloud/'
+workspace_path_13 = '/media/avitech7/QuocAnh_1TB/Point_Cloud/source_code'
 
 color_list = [
     '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#008080', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'
@@ -210,13 +210,13 @@ if __name__ == '__main__':
 
     save_name = f'mean_all_{args.resolution}'
 
-    save_path = os.path.join('./output/Scalable/', 'JPG')
+    save_path = os.path.join('./output/FirstPhase/', 'JPG')
     os.makedirs(save_path, exist_ok=True)
     
     fig.savefig(os.path.join(save_path, save_name + '.jpg'), dpi=600)
     print(os.path.join(save_path, save_name + '.jpg'))
     
-    save_path = os.path.join('./output/Scalable/', 'PDF')
+    save_path = os.path.join('./output/FirstPhase/', 'PDF')
     os.makedirs(save_path, exist_ok=True)
     
     fig.savefig(os.path.join(save_path, save_name + '.pdf'), dpi=600)

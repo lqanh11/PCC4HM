@@ -112,7 +112,8 @@ class Tester():
             y_q, _ = self.model.get_likelihood(y, quantize_mode="symbols")
 
             ### coordinate coder
-            y_C = (y.C//y.tensor_stride[0]).detach().cpu()[:,1:].numpy().astype('int')
+            
+            y_C = (torch.div(y.C, y.tensor_stride[0], rounding_mode='trunc')).detach().cpu()[:,1:].numpy().astype('int')
             write_ply_ascii_geo(filedir=save_basename+'_latentspace_coods.ply', coords=y_C)
             gpcc_encode(save_basename+'_latentspace_coods.ply', save_basename+'_C.bin')
             os.system('rm '+save_basename+'_latentspace_coods.ply')

@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument("--resolution", type=int, default=128)
     
 
-    parser.add_argument("--logdir", type=str, default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach')
+    parser.add_argument("--logdir", type=str, default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/enhanment_brach/OLD_used_in_the_thesis')
     parser.add_argument("--prefix", type=str, default='2024-01-13_12-39_encFIXa025_baseTRANc4_MLP_scalable_full_resolution128_alpha0.5_000', help="prefix of checkpoints/logger, etc.")
     parser.add_argument("--rate", type=str, default="r1")
     parser.add_argument("--outdir", type=str, default="./output/ModelNet/scalable_full/")

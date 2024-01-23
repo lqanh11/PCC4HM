@@ -28,7 +28,7 @@ LIST_PREFIX=(
     "2024-01-14_01-31_encFIXa6_baseTRANc4_MLP_scalable_full_resolution128_alpha0.5_000"
     "2024-01-14_03-19_encFIXa10_baseTRANc4_MLP_scalable_full_resolution128_alpha0.5_000"
 )
-RESOLUTION=128
+RESOLUTION=256
     
 
 # Get the length of one of the arrays (assuming both arrays have the same length)

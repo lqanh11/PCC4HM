@@ -19,11 +19,11 @@ def parse_args():
 
 
     parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--resolution", type=int, default=128)
+    parser.add_argument("--resolution", type=int, default=256)
     
 
-    parser.add_argument("--logdir", type=str, default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/cls_only')
-    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc_mlp_resolution128_alpha16000.0_000', help="prefix of checkpoints/logger, etc.")
+    parser.add_argument("--logdir", type=str, default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/cls_only/Proposed_Codec/256')
+    parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc_mlp_resolution256_alpha640.0_000', help="prefix of checkpoints/logger, etc.")
     parser.add_argument("--rate", type=str, default="r7")
     parser.add_argument("--outdir", type=str, default="./output/ModelNet/scalable_base/")
     
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
     avg_bits, accuracy_cls = tester.test(test_dataloader, 'Test')
     
-    save_results_excel = os.path.join(args.logdir, 'summary_results.xlsx')
+    save_results_excel = os.path.join(args.logdir, '20240115_summary_results.xlsx')
 
     if not os.path.exists(save_results_excel):
         # data to be added 
@@ -195,15 +195,17 @@ if __name__ == '__main__':
         initial_df.to_excel(save_results_excel, index=False)
     else:
         new_data = {
-            'prefix': [args.prefix],
-            'rate': [args.rate],
-            'outdir': [testing_config.outdir],
-            'bits': [avg_bits],
-            'accuracy': [accuracy_cls]
+            'prefix': args.prefix,
+            'rate': args.rate,
+            'outdir': testing_config.outdir,
+            'bits': avg_bits,
+            'accuracy': accuracy_cls
         }
         # Read the existing data from the Excel file into a DataFrame
         existing_df = pd.read_excel(save_results_excel)
         # Append the new data to the existing DataFrame
-        appended_df = existing_df.append(pd.DataFrame(new_data), ignore_index=True)
+        appended_df = pd.concat([existing_df, pd.DataFrame([new_data])], ignore_index=True)
         # Write the combined data (existing + new) back to the Excel file
         appended_df.to_excel(save_results_excel, index=False)
+
+    print(save_results_excel)

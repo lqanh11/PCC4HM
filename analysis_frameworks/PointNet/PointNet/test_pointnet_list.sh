@@ -84,4 +84,3 @@ done
 #                                    --ckptdir_list ${LIST_RATE[@]}
 #     done
 # done
-

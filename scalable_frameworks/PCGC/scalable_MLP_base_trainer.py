@@ -73,7 +73,9 @@ class Trainer():
         params_lr_list = []
         for module_name in self.model._modules.keys():
             params_lr_list.append({"params":self.model._modules[module_name].parameters(), 'lr':self.config.lr})
+        
         optimizer = torch.optim.Adam(params_lr_list, betas=(0.9, 0.999), weight_decay=1e-4)
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
         return optimizer
 
@@ -229,6 +231,8 @@ class Trainer():
             # loss_b.backward()
   
             self.optimizer.step()
+            # self.scheduler.step()
+            # self.config.lr = self.optimizer.param_groups[0]["lr"]
             # metric & record
             with torch.no_grad():
                 # statistics

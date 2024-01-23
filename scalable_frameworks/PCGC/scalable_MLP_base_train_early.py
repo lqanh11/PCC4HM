@@ -16,15 +16,15 @@ def parse_args():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--root_path", default='/media/avitech7/QuocAnh_1TB/Point_Cloud/dataset/modelnet10/pc_resample_format_h5/all_resolution')
+    parser.add_argument("--root_path", default='/media/avitech/QuocAnh_1TB/Point_Cloud/dataset/modelnet10/pc_resample_format_h5/all_resolution')
     
-    parser.add_argument("--alpha", type=float, default=2000, help="weights for distoration.")
-    parser.add_argument("--gamma", type=float, default=0.06, help="weights for machine task.")
+    parser.add_argument("--alpha", type=float, default=1000., help="weights for distoration.")
+    parser.add_argument("--gamma", type=float, default=0.1, help="weights for machine task.")
     parser.add_argument("--beta", type=float, default=1., help="weights for bit rate.")
 
-    parser.add_argument("--logdir", default='/media/avitech7/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/cls_only')
+    parser.add_argument("--logdir", default='/media/avitech/QuocAnh_1TB/Point_Cloud/logs/PCGC_scalable/logs_ModelNet10/cls_only')
     
-    parser.add_argument("--init_ckpt_original", default='/media/avitech7/QuocAnh_1TB/Point_Cloud/logs/PCGCv2/modelnet_dense_full_reconstruction_with_pretrained_alpha_10.0_000/ckpts/epoch_10.pth')
+    parser.add_argument("--init_ckpt_original", default='')
     parser.add_argument("--init_ckpt_base", default='')
     parser.add_argument("--init_ckpt", default='')
 
@@ -40,7 +40,7 @@ def parse_args():
                                     'classifier_mlp',
                                     'reconstruction_gain', # base
                                 #    'entropy_bottleneck_e', # enhancemet
-                                   'reconstruction_backbone', # enhancemet
+                                    'reconstruction_backbone', # enhancemet
                                 #    'analysis_residual', # enhancemet
                                 #    'systhesis_residual' # enhancemet
                                             ])
@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=0.001)
 
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epoch", type=int, default=1000)
+    parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--check_time", type=float, default=20,  help='frequency for recording state (min).') 
     parser.add_argument("--resolution", type=int, default=64, help="resolution")
     parser.add_argument("--prefix", type=str, default='encFIXa10_baseTRANc4_MLP_scalable', help="prefix of checkpoints/logger, etc.")
@@ -238,7 +238,8 @@ if __name__ == '__main__':
     best_epoch = 0
 
     for epoch in range(0, args.epoch):
-        if epoch % 10 == 0: trainer.config.lr = trainer.config.lr * 0.1# update lr 
+        # if epoch>10: trainer.config.lr =  max(trainer.config.lr/2, 1e-5)# update lr 
+        if epoch != 0 and epoch % 5 == 0: trainer.config.lr = trainer.config.lr * 0.1
         model_statedict = trainer.train(train_dataloader, params_to_train)
         val_loss = trainer.test(test_dataloader, 'Test')
 

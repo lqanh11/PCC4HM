@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import bjontegaard as bd
 
 plt.rcParams["font.family"] = "Times New Roman"
 # plt.rc('text', usetex = True)
@@ -30,6 +31,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--outdir_pcgcv2", 
                         default="compression_frameworks/PCGC/PCGCv2/evaluation/ModelNet/pretrained")
+                        # default="")
     
     parser.add_argument("--outdir_pcgcv2_f", 
                         default="source_code/compression_frameworks/PCGCv2/evaluation/output/ModelNet/finetuning")
@@ -49,6 +51,9 @@ if __name__ == '__main__':
     
     parser.add_argument("--resolution",
                         default="128")
+    
+    parser.add_argument("--metrics",
+                        default="mseF,PSNR (p2plane)")
 
     args = parser.parse_args()
 
@@ -151,20 +156,39 @@ if __name__ == '__main__':
                     label="G-PCC", marker='x', color=color_list[0], markersize=markersize)
         axs[1].plot(np.array(gpcc_results["bpp"][:]), np.array(gpcc_results["mseF,PSNR (p2plane)"][:]), 
                     label="G-PCC", marker='x', color=color_list[0], markersize=markersize)
-    
+        bd_rate_gpcc = bd.bd_rate(
+            rate_anchor=np.array(gpcc_results["bpp"][:]),
+            dist_anchor=np.array(gpcc_results[args.metrics][:]),
+            rate_test=np.array(scalable_results["bpp"][:]),
+            dist_test=np.array(scalable_results[args.metrics][:]),
+            method="akima",
+            require_matching_points=False,
+        )
+        print(bd_rate_gpcc)
+
     if args.outdir_geov1 != '':  
         
         axs[0].plot(np.array(geov1_results["bpp"][:]), np.array(geov1_results["mseF,PSNR (p2point)"][:]), 
                     label="GEO_CNNv1", marker='x', color=color_list[1], markersize=markersize)
         axs[1].plot(np.array(geov1_results["bpp"][:]), np.array(geov1_results["mseF,PSNR (p2plane)"][:]), 
                     label="GEO_CNNv1", marker='x', color=color_list[1], markersize=markersize)
-        
+       
     if args.outdir_geov2 != '':
         
         axs[0].plot(np.array(geov2_results["bpp"][:]), np.array(geov2_results["mseF,PSNR (p2point)"][:]), 
                     label="GEO_CNNv2", marker='x', color=color_list[2], markersize=markersize)
         axs[1].plot(np.array(geov2_results["bpp"][:]), np.array(geov2_results["mseF,PSNR (p2plane)"][:]), 
                     label="GEO_CNNv2", marker='x', color=color_list[2], markersize=markersize)
+
+        bd_rate_geocnnv2 = bd.bd_rate(
+            rate_anchor=np.array(geov2_results["bpp"][:]),
+            dist_anchor=np.array(geov2_results[args.metrics][:]),
+            rate_test=np.array(scalable_results["bpp"][:]),
+            dist_test=np.array(scalable_results[args.metrics][:]),
+            method="akima",
+            require_matching_points=False,
+        )
+        print(bd_rate_geocnnv2)
 
     if args.outdir_pcgcv1 != '': 
         
@@ -179,6 +203,21 @@ if __name__ == '__main__':
                     label="PCGCv2", marker='x', color=color_list[4], markersize=markersize)
         axs[1].plot(np.array(pcgcv2_results["bpp"][:]), np.array(pcgcv2_results["mseF,PSNR (p2plane)"][:]), 
                     label="PCGCv2", marker='x', color=color_list[4], markersize=markersize)
+        
+        # x_ref = np.sort(np.array(x_ref), axis=0)
+        # y_ref = np.sort( np.array(y_ref), axis=0)
+        # x_curr = np.sort( np.array(x_curr), axis=0)
+        # y_curr = np.sort( np.array(y_curr),axis=0)
+
+        bd_rate_pcgcv2 = bd.bd_rate(
+            rate_anchor=np.sort(np.array(pcgcv2_results["bpp"][:])),
+            dist_anchor=np.sort(np.array(pcgcv2_results[args.metrics][:])),
+            rate_test=np.array(scalable_results["bpp"][:]),
+            dist_test=np.array(scalable_results[args.metrics][:]),
+            method="akima",
+            require_matching_points=False,
+        )
+        print(bd_rate_pcgcv2)
 
     if args.outdir_pcgcv2_f != '':         
         
@@ -186,13 +225,25 @@ if __name__ == '__main__':
                     label="PCGCv2 (finetuning)", marker='x', color=color_list[5], markersize=markersize)
         axs[1].plot(np.array(pcgcv2_results_f["bpp"][:]), np.array(pcgcv2_results_f["mseF,PSNR (p2plane)"][:]), 
                     label="PCGCv2 (finetuning)", marker='x', color=color_list[5], markersize=markersize)
+        
+        bd_rate_pcgcv2_f = bd.bd_rate(
+            rate_anchor=np.array(pcgcv2_results_f["bpp"][:]),
+            dist_anchor=np.array(pcgcv2_results_f[args.metrics][:]),
+            rate_test=np.array(scalable_results["bpp"][:]),
+            dist_test=np.array(scalable_results[args.metrics][:]),
+            method="akima",
+            require_matching_points=False,
+        )
+        print(bd_rate_pcgcv2_f)
+
 
     if args.outdir_scalable_2_tasks != '':
         try:
             axs[0].plot(np.array(scalable_results["bpp"][:]), np.array(scalable_results["mseF,PSNR (p2point)"][:]), 
-                        label="Scalable", marker='x', color=color_list[6], markersize=markersize)
+                        label="Proposed Codec", marker='x', color=color_list[6], markersize=markersize)
             axs[1].plot(np.array(scalable_results["bpp"][:]), np.array(scalable_results["mseF,PSNR (p2plane)"][:]), 
-                        label="Scalable", marker='x', color=color_list[6], markersize=markersize)
+                        label="Proposed Codec", marker='x', color=color_list[6], markersize=markersize)
+        
         except NameError:
             pass    
 
@@ -221,6 +272,27 @@ if __name__ == '__main__':
     
     fig.savefig(os.path.join(save_path, save_name + '.pdf'), dpi=600)
     print(os.path.join(save_path, save_name + '.pdf'))
+
+    encode_times = []
+    decode_times = []
+
+    encode_times.append(gpcc_results["time(enc)"][:].mean())
+    decode_times.append(gpcc_results["time(dec)"][:].mean())
+
+    encode_times.append(geov2_results["time(enc)"][:].mean())
+    decode_times.append(geov2_results["time(dec)"][:].mean())
+
+    encode_times.append(pcgcv2_results["time(enc)"][:].mean())
+    decode_times.append(pcgcv2_results["time(dec)"][:].mean())
+
+    encode_times.append(pcgcv2_results_f["time(enc)"][:].mean())
+    decode_times.append(pcgcv2_results_f["time(dec)"][:].mean())
+
+    encode_times.append(scalable_results["time(enc)"][:].mean())
+    decode_times.append(scalable_results["time(dec)"][:].mean())
+
+    print(encode_times)
+    print(decode_times)
             
     
     

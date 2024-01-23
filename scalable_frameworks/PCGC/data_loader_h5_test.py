@@ -132,7 +132,7 @@ class PCDataset_LoadAll                                                         
         filedir = self.files[idx]
         basename = os.path.split(filedir)[-1].split('.')[0]
         
-        ply_file_dir = os.path.join('/media/avitech/QuocAnh_1TB/Point_Cloud/dataset/modelnet10/pc_resample_format_ply',
+        ply_file_dir = os.path.join('/media/avitech7/QuocAnh_1TB/Point_Cloud/dataset/modelnet10/pc_resample_format_ply',
                                     f'{self.resolution}',
                                     'original',
                                     basename + ".ply")

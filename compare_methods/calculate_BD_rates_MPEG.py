@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from BD_Rates.AIPCCReportingTemplate.test import compare
 
-workspace_path = '/media/avitech/Data/quocanhle/PointCloud/'
+workspace_path = '/media/avitech7/QuocAnh_1TB/Point_Cloud/'
 xlabel='bpp'
 ylabel1='mseF,PSNR (p2point)'
 ylabel2="mseF,PSNR (p2plane)"
